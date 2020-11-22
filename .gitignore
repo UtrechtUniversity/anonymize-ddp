@@ -1,6 +1,6 @@
 # exclude compiled binaries and external models
 /bin
-
+/src/frozen_east_text_detection.pb
 # exclude data from source control by default
 /data/temp
 /data/processed

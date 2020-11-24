@@ -30,7 +30,7 @@ class BlurVideos:
                 cap = cv.VideoCapture(str(mp4))
                 total_frames = int(cap.get(cv.CAP_PROP_FRAME_COUNT))
                 img_array = []
-                net = cv.dnn.readNet("frozen_east_text_detection.pb")
+                net = cv.dnn.readNet("src/frozen_east_text_detection.pb")
 
                 for g in range(total_frames):
                     cap.set(1, g - 1)

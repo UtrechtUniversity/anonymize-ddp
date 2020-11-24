@@ -164,7 +164,8 @@ class ParseJson:
     def common_names(self) -> dict:
         """Add common given names in NL to keys dictionary; these may occur in free text like messages"""
 
-        name_file = Path.cwd() / 'Firstnames_NL.lst'
+        # name_file = Path.cwd() / 'Firstnames_NL.lst'
+        name_file = Path('src') / 'Firstnames_NL.lst'
         with name_file.open() as f:
             names = [i.strip() for i in f.readlines()]
 

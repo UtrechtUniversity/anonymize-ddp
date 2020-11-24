@@ -33,7 +33,7 @@ class BlurImages:
                 frame_bt = mfbt.find_text_and_blur(
                     frame_bf,
                     # eastPath="frozen_east_text_detection.pb",
-                    net=cv.dnn.readNet("frozen_east_text_detection.pb"),
+                    net=cv.dnn.readNet("src/frozen_east_text_detection.pb"),
                     min_confidence=0.5)
 
                 cv.imwrite(str(jpg), frame_bt)

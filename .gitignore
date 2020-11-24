@@ -1,7 +1,14 @@
 # exclude compiled binaries and external models
 /bin
-/src/frozen_east_text_detection.pb
-# exclude data from source control by default
-/data/temp
-/data/processed
-/data/raw
+
+# exclude data from data and results folder by default
+data
+results/output
+
+# exclude source control
+src/frozen_east_text_detection.pb
+src/__pycache__/blur_images.cpython-37.pyc
+src/__pycache__/blur_videos.cpython-37.pyc
+src/__pycache__/module_find_blur_faces.cpython-37.pyc
+src/__pycache__/module_find_blur_text.cpython-37.pyc
+src/__pycache__/parse_json.cpython-37.pyc

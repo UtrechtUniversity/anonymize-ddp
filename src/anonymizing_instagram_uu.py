@@ -213,10 +213,10 @@ class AnonymizeInstagram:
         key_file = self.preprocess_json()
 
         images = BlurImages(self.unpacked)
-        #images.blur_images()
+        images.blur_images()
 
         videos = BlurVideos(self.unpacked)
-        #videos.blur_videos()
+        videos.blur_videos()
 
         self.logger.info(f"Pseudonymizing text files in {self.unpacked.name}...")
 

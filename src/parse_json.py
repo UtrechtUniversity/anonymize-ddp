@@ -51,7 +51,7 @@ class ParseJson:
 
     def extract(self, obj, key_dict: dict) -> dict:
         """Recursively search for values of key in JSON tree."""
-        exceptions = ['created_at', 'instagram', 'mp4_size', 'webp_size', 'height', 'frames']
+        exceptions = ['created_at', 'instagram', 'mp4_size', 'webp_size', 'height', 'frames', 'captions', 'taken_at', 'timestamp']
         if isinstance(obj, dict):
             for k, v in obj.items():
                 if v:

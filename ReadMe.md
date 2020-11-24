@@ -81,7 +81,7 @@ Before you can run the software, you need to make sure that the [src folder](/sr
 
 ## Run software
 
-When all preceding steps are taken, the data download packages can be pseudonimized. Run the program with (atleast) the arguments `-i` for data input folder (i.e., [data](\data)) and ` -o` data output folder (i.e., [results/output](/results/output):
+When all preceding steps are taken, the data download packages can be pseudonimized. Run the program with (atleast) the arguments `-i` for data input folder (i.e., [data](\data)) and ` -o` data output folder (i.e., [results/output](/results/output)):
 
 ```
 $ python src/anonymizing_instagram_uu.py [OPTIONS]

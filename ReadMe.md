@@ -73,7 +73,7 @@ Instagram will deliver your data in a compressed zip folder with format **userna
 
 ### Create additional files
 
-Before you can run the software, you need to make sure that the main repository folder contains the following items:
+Before you can run the software, you need to make sure that the [src folder](/src) contains the following items:
 * **Facial blurring software**: The *frozen_east_text_detection.pb* software, necessary for the facial blurring of images and videos, can be downloaded from [GitHub](https://github.com/oyyd/frozen_east_text_detection.pb) 
 * **Participant file**\*: An overview of all participants' usernames and participant IDs (e.g., participants.csv)
 
@@ -81,16 +81,16 @@ Before you can run the software, you need to make sure that the main repository 
 
 ## Run software
 
-When all preceding steps are taken, the data download packages can be pseudonimized. Run the program with (atleast) the arguments `-i` for input folder (e.g., 'input') and ` -o` output folder (e.g., 'output'):
+When all preceding steps are taken, the data download packages can be pseudonimized. Run the program with (atleast) the arguments `-i` for data input folder (i.e., [data](\data)) and ` -o` data output folder (i.e., [results/output](/results/output):
 
 ```
-$ python anonymizing_instagram_uu.py [OPTIONS]
+$ python src/anonymizing_instagram_uu.py [OPTIONS]
 
 Options:
-  -i  path to folder containing zipfiles (e.g., -i input)
-  -o  path to folder where files will be unpacked and pseudonimized (e.g., -o output)
+  -i  path to folder containing zipfiles (i.e., -i data)
+  -o  path to folder where files will be unpacked and pseudonimized (i.e., -o results/output)
   -l  path to log file
-  -p  path to participants list to use corresponding participant IDs (e.g., -p participants.csv)
+  -p  path to participants list to use corresponding participant IDs (e.g., -p src/participants.csv)
   -c  replace capitalized names only (when not entering this option, the default = False; not case sensitive) (e.g., -c)
 
 ```

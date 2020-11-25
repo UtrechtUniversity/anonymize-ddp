@@ -3,7 +3,8 @@
 
 # exclude data from data and results folder by default
 data
-# results/output
+results/output
+results/keys
 
 # exclude source control
 src/frozen_east_text_detection.pb

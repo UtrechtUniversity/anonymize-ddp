@@ -94,7 +94,7 @@ class ParseJson:
         labels = [r'search_click',
                   r'participants',
                   r'sender',
-                  r'author'
+                  r'author',
                   r'^\S*mail',
                   r'^\S*name',
                   r'^\S*friends$',
@@ -110,7 +110,7 @@ class ParseJson:
     def check_name(self, text: str):
         """check if given string is valid username"""
 
-        name = r'^\S{6,}$'
+        name = r'^\S{3,30}$'
 
         try:
             int(text)

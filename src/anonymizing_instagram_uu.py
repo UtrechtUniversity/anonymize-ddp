@@ -141,10 +141,9 @@ class AnonymizeInstagram:
             key_dict[self.unpacked.name] = key_dict[name] + timestamp
 
         # Add regex pattern to recognize and replace links to other users profiles
-        key_dict['r#(\d{2,4}-\d{7,10})|(\d{2,4}\s\d{7,9})|(\+\d{2}\s*\d{9})|(\(\d{2,3}\)\d{7,8})|0\d{9}'] = '__phone'
-        key_dict['r#https:\/\/scontent.*?instagram.com\/.*?(?=["\s,}])'] = '__url'
-        key_dict['r#https:\/\/www.*?instagram.com\/.*?(?=["\s,}])'] = '__url'
-        key_dict['r#[\w\.-]+@[\w\.-]+'] = '__email'
+        key_dict['r#(\d{2,4}-\d{7,10})|(\d{2,4}\s\d{7,9})|(\+\d{2}\s*\d{9})|(\(\d{2,3}\)\d{7,8})|0\d{9}'] = '__phonenumber'
+        key_dict['r#https:\/\/www.*?instagram.com\/.*?(?=["\s,}])|https:\/\/scontent.*?instagram.com\/.*?(?=["\s,}])|https:\/\/instagram.com\/.*?(?=["\s,}])'] = '__url'
+        key_dict['r#[\w\.-]+@[\w\.-]+'] = '__emailaddress'
 
         # hash name of package owner in name output file
         sub = key_dict[self.unpacked.name]

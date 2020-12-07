@@ -51,7 +51,10 @@ class ParseJson:
 
     def extract(self, obj, key_dict: dict) -> dict:
         """Recursively search for values of key in JSON tree."""
-        exceptions = ['created_at', 'instagram', 'mp4_size', 'webp_size', 'height', 'frames', 'captions', 'taken_at', 'timestamp']
+        exceptions = ['created_at', 'instagram', 'mp4_size', 'text', 'webp_size',
+                      'height', 'frames', 'captions', 'taken_at', 'timestamp', 'date',
+                      'date_joined', 'date_of_birth', 'caption', 'width', 'size', 'time']
+
         if isinstance(obj, dict):
             for k, v in obj.items():
                 if v:
@@ -78,7 +81,11 @@ class ParseJson:
                         key_dict[name] = '__name'
                 except:
                     for item in obj:
-                        self.extract(item, key_dict)
+                        try:
+                            self.extract(item, key_dict)
+                        except:
+                            if re.match(r'[0-9-]{6,13}', item['text']):
+                                key_dict[item['text']] = '__phonenumber'
 
         # Add package filename to key dict as the name of the output package needs to be hashed
         if self.package_user not in key_dict:
@@ -94,7 +101,7 @@ class ParseJson:
         labels = [r'search_click',
                   r'participants',
                   r'sender',
-                  r'author',
+                  r'author'
                   r'^\S*mail',
                   r'^\S*name',
                   r'^\S*friends$',
@@ -110,7 +117,7 @@ class ParseJson:
     def check_name(self, text: str):
         """check if given string is valid username"""
 
-        name = r'^\S{3,30}$'
+        name = r'^(?=.*[a-zA-Z])[A-Za-z0-9_.]{3,30}$'
 
         try:
             int(text)
@@ -164,7 +171,6 @@ class ParseJson:
     def common_names(self) -> dict:
         """Add common given names in NL to keys dictionary; these may occur in free text like messages"""
 
-        # name_file = Path.cwd() / 'Firstnames_NL.lst'
         name_file = Path('src') / 'Firstnames_NL.lst'
         with name_file.open() as f:
             names = [i.strip() for i in f.readlines()]
@@ -181,7 +187,9 @@ class ParseJson:
     def mingle(text: str) -> str:
         """ Creates scrambled version with letters and numbers of entered word """
 
-        if len(str(text)) > 1:
+        text = str(text).lower()
+
+        if len(text) > 1:
             pseudo = "__" + hashlib.md5(text.encode()).hexdigest()
         else:
             pseudo = ""

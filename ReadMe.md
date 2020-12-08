@@ -29,7 +29,7 @@ The blurring of text in images and videos is based on a pre-trained version of t
 
 ### License
 
-The code in this project are licensed [CC0](LICENSE.md).
+The code in this project is licensed with [MIT](LICENSE.md).
 
 ### Attribution and academic use
 

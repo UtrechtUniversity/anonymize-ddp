@@ -11,8 +11,9 @@ data/*
 !data/processed/.gitkeep
 
 
-# exclude outcomes (results, logs) produced by running script
+# double precaution: exclude any outcomes (results, logs) produced by running script
 */keys/*
+/*/*.json
 /*/*.csv
 /*/*.txt
 # keep requirements file

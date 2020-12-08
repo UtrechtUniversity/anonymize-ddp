@@ -1,15 +1,16 @@
 # exclude compiled binaries and external models
-/bin
+bin/*
+*.pyc
 
-# exclude data from data and results folder by default
-data
-results/output
-results/keys
+# exclude data from data folder by default
+data/*
+# keep data folder
+!data/.gitkeep
+
+# exclude outcomes (results, logs) produced by running script
+*/keys/*
+*.csv
+*.txt
 
 # exclude source control
 src/frozen_east_text_detection.pb
-src/__pycache__/blur_images.cpython-37.pyc
-src/__pycache__/blur_videos.cpython-37.pyc
-src/__pycache__/module_find_blur_faces.cpython-37.pyc
-src/__pycache__/module_find_blur_text.cpython-37.pyc
-src/__pycache__/parse_json.cpython-37.pyc

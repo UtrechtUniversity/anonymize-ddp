@@ -11,6 +11,8 @@ data/*
 */keys/*
 *.csv
 *.txt
+# keep requirements file
+!requirements.txt
 
 # exclude source control
 src/frozen_east_text_detection.pb

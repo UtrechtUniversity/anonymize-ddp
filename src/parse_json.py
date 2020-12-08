@@ -32,10 +32,18 @@ class ParseJson:
         for file in self.input_folder.glob('*.json'):
             # Per json file: extract sensitive info+labels and store in dict
             with file.open(encoding="utf8") as f:
-                key_dict = {}
-                data = json.load(f)
-                res = self.extract(data,key_dict)
-                keys.append(res)
+                if file.stem == 'profile':
+                    data = json.load(f)
+                    names = re.findall(r'[a-zA-Z]{2,}', data['name'])
+                    key_dict = {' '.join(names): '__personname',
+                                names[0]: '__personname',
+                                names[-1]: '__personname'}
+                    keys.append(key_dict)
+                else:
+                    key_dict = {}
+                    data = json.load(f)
+                    res = self.extract(data,key_dict)
+                    keys.append(res)
 
         # Add common given names to dictionary
         common_names = self.common_names()

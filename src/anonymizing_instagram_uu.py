@@ -106,11 +106,14 @@ class AnonymizeInstagram:
             # Replace bio and gender info
             bio = re.findall(re.compile("biography\": \"(.*?)\""), file)
             gender = re.findall(re.compile("gender\": \"(.*?)\""), file)
+            birth = re.findall(re.compile("\"\S*birth\": \"(.*?)\""), file)
 
             if len(bio) >= 1:
                 file = file.replace(bio[0], '__bio')
             if len(gender) >= 1:
                 file = file.replace(gender[0], '__gender')
+            if len(birth) >= 1:
+                file = file.replace(birth[0], '__birthday')
 
             # Save files
             df = json.loads(file)
@@ -135,17 +138,23 @@ class AnonymizeInstagram:
         else:
             key_dict = parser.create_keys()
 
+        # Make sure the ddp name (username_YYYYMMDD) gets the same hash as the username (username) + YYYYMMDD
         if key_dict[name].startswith("__"):
             key_dict[self.unpacked.name] = key_dict[name][2:] + timestamp
         else:
             key_dict[self.unpacked.name] = key_dict[name] + timestamp
+
+        # Make sure that the personal name of the ddp gets the same hash as the username
+        persons = [key for (key, value) in key_dict.items() if value == '__personname']
+        for person in persons:
+            key_dict[person] = key_dict[name]
 
         # Add regex pattern to recognize and replace links to other users profiles
         key_dict['r#(\d{2,4}-\d{7,10})|(\d{2,4}\s\d{7,9})|(\+\d{2}\s*\d{9})|(\(\d{2,3}\)\d{7,8})|0\d{9}'] = '__phonenumber'
         key_dict['r#https:\/\/www.*?instagram.com\/.*?(?=["\s,}])|https:\/\/scontent.*?instagram.com\/.*?(?=["\s,}])|https:\/\/instagram.com\/.*?(?=["\s,}])'] = '__url'
         key_dict['r#[\w\.-]+@[\w\.-]+'] = '__emailaddress'
 
-        # hash name of package owner in name output file
+        # save key file with hashed name of package owner in (newly created) key folder
         sub = key_dict[self.unpacked.name]
 
         key_folder = self.output_folder.parent / 'keys'
@@ -212,11 +221,11 @@ class AnonymizeInstagram:
         self.logger.info(f"Preprocess {self.unpacked.name}...")
         key_file = self.preprocess_json()
 
-        images = BlurImages(self.unpacked)
-        images.blur_images()
-
-        videos = BlurVideos(self.unpacked)
-        videos.blur_videos()
+        # images = BlurImages(self.unpacked)
+        # images.blur_images()
+        #
+        # videos = BlurVideos(self.unpacked)
+        # videos.blur_videos()
 
         self.logger.info(f"Pseudonymizing text files in {self.unpacked.name}...")
 

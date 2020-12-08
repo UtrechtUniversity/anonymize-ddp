@@ -1,0 +1,5 @@
+raw/*
+temp/*
+processed/*
+!.gitignore
+!*/.gitkeep

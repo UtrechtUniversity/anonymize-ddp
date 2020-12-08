@@ -12,10 +12,12 @@ data/*
 
 
 # double precaution: exclude any outcomes (results, logs) produced by running script
-*/keys/*
-/*/*.json
-/*/*.csv
-/*/*.txt
+*.json
+/**/*.json
+*.csv
+/**/*.csv
+*.txt
+/**/*.txt
 # keep requirements file
 !requirements.txt
 

@@ -148,7 +148,9 @@ class AnonymizeInstagram:
         # hash name of package owner in name output file
         sub = key_dict[self.unpacked.name]
 
-        outfile = self.output_folder.parent / 'keys' / f'keys_{sub}.csv'
+        key_folder = self.output_folder.parent / 'keys'
+        key_folder.mkdir(parents=True, exist_ok=True)
+        outfile = key_folder / f'keys_{sub}.csv'
 
         # write keys to csv file as input for anonymizeUU package
         key_series = pd.Series(key_dict, name='subt')

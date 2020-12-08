@@ -13,8 +13,8 @@ data/*
 
 # exclude outcomes (results, logs) produced by running script
 */keys/*
-*.csv
-*.txt
+/*/*.csv
+/*/*.txt
 # keep requirements file
 !requirements.txt
 

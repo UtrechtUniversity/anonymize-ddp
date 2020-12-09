@@ -34,10 +34,9 @@ class ParseJson:
             with file.open(encoding="utf8") as f:
                 if file.stem == 'profile':
                     data = json.load(f)
-                    names = re.findall(r'[a-zA-Z]{2,}', data['name'])
-                    key_dict = {' '.join(names): '__personname',
-                                names[0]: '__personname',
-                                names[-1]: '__personname'}
+                    key_dict = {data['name']: '__personname',
+                                re.findall(r'[a-zA-Z]{2,}', data['name'])[0]: '__personname',
+                                re.findall(r'[a-zA-Z]{2,}', data['name'])[-1]: '__personname'}
                     keys.append(key_dict)
                 else:
                     key_dict = {}
@@ -109,7 +108,7 @@ class ParseJson:
         labels = [r'search_click',
                   r'participants',
                   r'sender',
-                  r'author'
+                  r'author',
                   r'^\S*mail',
                   r'^\S*name',
                   r'^\S*friends$',
@@ -125,7 +124,7 @@ class ParseJson:
     def check_name(self, text: str):
         """check if given string is valid username"""
 
-        name = r'^(?=.*[a-zA-Z])[A-Za-z0-9_.]{3,30}$'
+        name = r'^(?=\S*[a-zA-Z])[A-Za-z0-9_.]{3,30}$'
 
         try:
             int(text)
@@ -184,9 +183,10 @@ class ParseJson:
             names = [i.strip() for i in f.readlines()]
 
         # Create dictionary with original name and mingled substitute
+        exceptions = ['Van', 'Door', 'Can']
         name_dict = {}
         for name in set(names):
-            if len(name) > 1:
+            if len(name) > 1 and name not in exceptions:
                 name_dict[name] = '__name'
 
         return name_dict
@@ -209,7 +209,7 @@ class ParseJson:
         """Format irregular list of dictionaries and remove duplicates"""
 
         no_dupl = [i for n, i in enumerate(obj) if i not in obj[n + 1:]]
-
+        no_dupl.reverse()
         new_dict = {k: v for d in no_dupl for k, v in d.items()}
 
         return new_dict

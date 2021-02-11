@@ -68,7 +68,7 @@ class AnonymizeInstagram:
                                     p.replace(Path(unpacked, f"{p.stem}_{index - 1}{p.suffix}"))
                                 shutil.copy(fileName, unpacked)
             else:
-                self.logger.warning('Can not extract {self.zip_file}, do nothing')
+                self.logger.warning(f'Can not extract {self.zip_file}, do nothing')
                 unpacked = ' '
 
         except Exception as e:
@@ -134,6 +134,16 @@ class AnonymizeInstagram:
             # merge two dictionaries; values from part_dict overwrite values from key_dict
             temp_key_dict = parser.create_keys()
             part_dict = self.read_participants()
+
+            part_keys = {i.lower(): v for i, v in part_dict.items()}
+
+            try:
+                dupl = [i for i in temp_key_dict.keys() if i.lower() in part_keys.keys()]
+                for i in dupl:
+                    temp_key_dict[i] = part_keys[i.lower()]
+            except:
+                next
+
             key_dict = {**temp_key_dict, **part_dict}
         else:
             key_dict = parser.create_keys()
@@ -150,9 +160,9 @@ class AnonymizeInstagram:
             key_dict[person] = key_dict[name]
 
         # Add regex pattern to recognize and replace links to other users profiles
-        key_dict['r#(\d{2,4}-\d{7,10})|(\d{2,4}\s\d{7,9})|(\+\d{2}\s*\d{9})|(\(\d{2,3}\)\d{7,8})|0\d{9}'] = '__phonenumber'
-        key_dict['r#https:\/\/www.*?instagram.com\/.*?(?=["\s,}])|https:\/\/scontent.*?instagram.com\/.*?(?=["\s,}])|https:\/\/instagram.com\/.*?(?=["\s,}])'] = '__url'
-        key_dict['r#[\w\.-]+@[\w\.-]+'] = '__emailaddress'
+        key_dict['r#(\(?([+]31|0031|0)-?6(\s?|-)([0-9]\s{0,3}){7,9})(?=[\"\'\.\s,}])'] = '__phonenumber'
+        key_dict['r#https:\S*instagram\w*.com\S*?(?=[\"\'\.\s,}])'] = '__url'
+        key_dict['r#[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+'] = '__emailaddress'
 
         # save key file with hashed name of package owner in (newly created) key folder
         sub = key_dict[self.unpacked.name]
@@ -221,11 +231,11 @@ class AnonymizeInstagram:
         self.logger.info(f"Preprocess {self.unpacked.name}...")
         key_file = self.preprocess_json()
 
-        images = BlurImages(self.unpacked)
-        images.blur_images()
-
-        videos = BlurVideos(self.unpacked)
-        videos.blur_videos()
+        # images = BlurImages(self.unpacked)
+        # images.blur_images()
+        #
+        # videos = BlurVideos(self.unpacked)
+        # videos.blur_videos()
 
         self.logger.info(f"Pseudonymizing text files in {self.unpacked.name}...")
 

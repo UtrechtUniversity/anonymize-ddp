@@ -41,7 +41,7 @@ class ParseJson:
                 else:
                     key_dict = {}
                     data = json.load(f)
-                    res = self.extract(data,key_dict)
+                    res = self.extract(data, key_dict)
                     keys.append(res)
 
         # Add common given names to dictionary
@@ -68,8 +68,11 @@ class ParseJson:
                     if isinstance(v, (dict, list)):
                         self.extract(v, key_dict)
                     elif isinstance(v, str):
+                        if self.check_name(k) and self.check_datetime(v):
+                            if k not in exceptions:
+                                key_dict[k] = '__name'
                         # If the key matches predefined labels, value may contain sensitive info
-                        if any(label.match(k) for label in self.labels):
+                        elif any(label.match(k) for label in self.labels):
                             if re.match(self.email, v):
                                 key_dict[v] = '__emailaddress'
                             elif self.check_phone(v):
@@ -77,16 +80,18 @@ class ParseJson:
                             elif self.check_name(v):
                                 if v not in exceptions:
                                     key_dict[v] = '__name'
-                        elif self.check_name(k) and self.check_datetime(v):
-                            if k not in exceptions:
-                                key_dict[k] = '__name'
         elif isinstance(obj, list):
             if obj:
                 try:
                     names = self.get_username(obj)
                     for name in names:
-                        key_dict[name] = '__name'
+                        if self.check_name(name):
+                            key_dict[name] = '__name'
                 except:
+                    tags = re.findall('(?<=\s@)[\w.]{3,30}(?=[\W])', str(obj))
+                    for tag in tags:
+                        key_dict[tag] = '__name'
+
                     for item in obj:
                         try:
                             self.extract(item, key_dict)
@@ -168,8 +173,8 @@ class ParseJson:
             for i in obj:
                 if i not in matches:
                     try:
-                        res = re.match(self.usr, i)
-                        usr_list.append(res.group(0))
+                        res = self.check_name(i)
+                        usr_list.append(res)
                     except:
                         pass
 

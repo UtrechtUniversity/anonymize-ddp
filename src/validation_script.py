@@ -1,262 +1,408 @@
-import argparse
-import collections
-import dateutil.parser
-from datetime import datetime
-import hashlib
-import json
-import logging
-import pandas as pd
 from pathlib import Path
+import pandas as pd
+from functools import reduce
+from sklearn.metrics import f1_score, precision_score, recall_score
+import logging
+import argparse
+import json
+import csv
 import re
 
 
-class ParseJson:
-    """ Extract sensitive information in jsonfiles"""
+class ValidateAnonymization:
+    """ Detect and anonymize personal information in Instagram data packages"""
 
-    def __init__(self, input_folder: Path, output_folder: Path, package_user: str, timestamp: str):
-        self.logger = logging.getLogger('anonymizing.parse_json')
-        self.email = r'[\w\.-]+@[\w\.-]+'
-        self.input_folder = input_folder
-        self.output_folder = output_folder
-        self.package_user = package_user
-        self.timestamp = timestamp
-        self.labels = self.get_labels()
+    def __init__(self, results_folder: Path, processed_folder: Path, keys_folder: Path):
 
-    def create_keys(self) -> dict:
-        """Extract sensitive information from nested JSON and store with coded labels in dictionary ."""
+        self.logger = logging.getLogger('validating')
+        self.results_folder = results_folder
+        self.processed_folder = processed_folder
+        self.keys_folder = keys_folder
 
-        # Create key file
-        self.logger.info(f"Creating key file for {self.input_folder}...")
+        self.all_keys = self.load_keys()
+        self.anon_text = self.load_packages()
+        self.count_labels = self.count_labels()
 
-        keys = []
-        for file in self.input_folder.glob('*.json'):
-            # Per json file: extract sensitive info+labels and store in dict
-            with file.open(encoding="utf8") as f:
-                if file.stem == 'profile':
-                    data = json.load(f)
-                    key_dict = {data['name']: '__personname',
-                                re.findall(r'[a-zA-Z]{2,}', data['name'])[0]: '__personname',
-                                re.findall(r'[a-zA-Z]{2,}', data['name'])[-1]: '__personname'}
-                    keys.append(key_dict)
-                else:
-                    key_dict = {}
-                    data = json.load(f)
-                    res = self.extract(data, key_dict)
-                    keys.append(res)
+    def load_keys(self) -> dict:
+        """ Load and merge all key files (created in the de-identification process) """
 
-        # Add common given names to dictionary
-        common_names = self.common_names()
-        keys.append(common_names)
+        key_files = list(self.keys_folder.glob('*'))
+        all_keys = {}
 
-        # Combine separate dictionaries in one
-        all_keys = ParseJson.format_dict(keys)
+        for i in key_files:
+            keys = {}
+            with open(i, 'r') as data:
+                for line in csv.reader(data):
+                    keys.update({line[0]: line[1]})
+                    if line[1] == i.stem.split('keys_')[1]:
+                        username = line[0]
+            all_keys.update({username: keys})
 
-        #replace name labels with hash code
-        hash_key_dict = {k: (self.mingle(k) if v == '__name' else v) for k, v in all_keys.items()}
+        return all_keys
 
-        return hash_key_dict
+    def load_packages(self):
+        """ Load and merge de-identified data packages into a dataframe"""
 
-    def extract(self, obj, key_dict: dict) -> dict:
-        """Recursively search for values of key in JSON tree."""
-        exceptions = ['created_at', 'instagram', 'mp4_size', 'text', 'webp_size',
-                      'height', 'frames', 'captions', 'taken_at', 'timestamp', 'date',
-                      'date_joined', 'date_of_birth', 'caption', 'width', 'size', 'time']
+        anon_text = pd.DataFrame()
+        packages = list(self.processed_folder.glob("*"))
 
-        if isinstance(obj, dict):
-            for k, v in obj.items():
-                if v:
-                    if isinstance(v, (dict, list)):
-                        self.extract(v, key_dict)
-                    elif isinstance(v, str):
-                        if self.check_name(k) and self.check_datetime(v):
-                            if k not in exceptions:
-                                key_dict[k] = '__name'
-                        # If the key matches predefined labels, value may contain sensitive info
-                        elif any(label.match(k) for label in self.labels):
-                            if re.match(self.email, v):
-                                key_dict[v] = '__emailaddress'
-                            elif self.check_phone(v):
-                                key_dict[v] = '__phonenumber'
-                            elif self.check_name(v):
-                                if v not in exceptions:
-                                    key_dict[v] = '__name'
-        elif isinstance(obj, list):
-            if obj:
+        for package in packages:
+            files = package.glob('*.json')
+            for file in files:
                 try:
-                    names = self.get_username(obj)
-                    for name in names:
-                        if self.check_name(name):
-                            key_dict[name] = '__name'
+                    with open(file, 'r', encoding='utf8') as f2:
+                        data = f2.read()
+                        input_data = {'text': [data], 'file': [file.name], 'package': [package.name]}
+                        df = pd.DataFrame(input_data)
+                        anon_text = anon_text.append(df, ignore_index=True)
                 except:
-                    tags = re.findall('(?<=\s@)[\w.]{3,30}(?=[\W])', str(obj))
-                    for tag in tags:
-                        key_dict[tag] = '__name'
+                    self.logger.warning(f'      {file} of package {package} is not added')
 
-                    for item in obj:
-                        try:
-                            self.extract(item, key_dict)
-                        except:
-                            if re.match(r'[0-9-]{6,13}', item['text']):
-                                key_dict[item['text']] = '__phonenumber'
+        return anon_text
 
-        # Add package filename to key dict as the name of the output package needs to be hashed
-        if self.package_user not in key_dict:
-            key_dict.update({self.package_user: '__name'})
-            key_dict.update({self.input_folder.name: '__name'})
-        else:
-            key_dict.update({self.input_folder.name: '__name'})
+    def load_raw_text(self):
+        """ Load the raw file used in Label-Studio for labeling """
 
-        return key_dict
+        raw_text = pd.read_csv(self.results_folder.parent / 'text_packages.csv')
+        raw_text['file'] = raw_text['file'] + '.json'
 
-    def get_labels(self) -> list:
-        """Get regular expressions of json search labels"""
-        labels = [r'search_click',
-                  r'participants',
-                  r'sender',
-                  r'author',
-                  r'^\S*mail',
-                  r'^\S*name',
-                  r'^\S*friends$',
-                  r'^\S*user\S*$',
-                  r'^\S*owner$',
-                  r'^follow\S*$',
-                  r'^contact\S*$']
+        return raw_text
 
-        regex_labels = [re.compile(l) for l in labels]
+    def load_results(self):
+        """ Load Label-Studio results (labeled raw data packages) into dataframe """
 
-        return regex_labels
+        # Load results (json format) of label-studio
+        label_results = self.results_folder
+        with label_results.open(encoding="utf-8-sig") as f:
+            label_results = json.load(f)
 
-    def check_name(self, text: str):
-        """check if given string is valid username"""
+        # Determine length of label_results(i.e., number of labeled documents )
+        length = 0
+        for item in label_results:
+            length += 1
 
-        name = r'^(?=\S*[a-zA-Z])[A-Za-z0-9_.]{3,30}$'
+        # Create dataframe with most important results: labeled text, type of label, file and package
+        labeled_df = pd.DataFrame()
+        for an in range(length):
+            file = label_results[an]['data']['file'] + '.json'
+            package = label_results[an]['data']['package']
+            for i in label_results[an]['completions']:
+                for j in i['result']:
+                    if len(j['value']['text']) > 2:
+                        inputs = {'text': [j['value']['text'].strip()], 'label': [j['value']['labels'][0]],
+                                  'file': [file], 'package': [package]}
+                        inputs = pd.DataFrame(inputs)
+                        labeled_df = labeled_df.append(inputs, ignore_index=True)
 
-        try:
-            int(text)
-            return None
-        except:
-            if re.match(name, text):
-                return text
+        return labeled_df
 
-    def check_phone(self, text: str):
-        """check if given string is valid phone nr"""
+    def count_files(self):
+        """ Create frequency table of labeled raw text per file per package """
 
-        patterns = [r'(?<!\d)\d{9,10}(?!\d)',
-                    r'[0-9]{2}\-[0-9]{8}']
+        labeled_df = self.load_results()
 
-        phone_nrs = [re.compile(p) for p in patterns]
+        count_files = labeled_df.groupby(['label', 'file']).size().reset_index(name='count')
+        count_files = count_files.pivot(index='file', columns='label', values='count').reset_index().rename_axis(None,axis=1)
+        count_files = count_files[['file', 'Username', 'Name', 'Email', 'Phone', 'URL']]
+        count_files = count_files.rename(columns={'Username': 'Usernames', 'Name': 'First names', 'Email': 'E-mail'})
 
-        if any(nr.match(text) for nr in phone_nrs):
-            return text
+        count_files['Total'] = count_files.sum(1)
 
-    def check_datetime(self, text: str) -> datetime:
-        """Check if given string can be converted to a datetime format"""
-        try:
-            res = dateutil.parser.parse(text)
-            return res
-        except ValueError:
-            pass
-        try:
-            res = datetime.utcfromtimestamp(int(text))
-            return res
-        except ValueError:
-            pass
+        path = Path(self.results_folder.parent, f'descriptives.csv')
+        count_files.to_csv(path, index=False)
 
-    def get_username(self, obj: list):
-        """Check if given list contains username"""
+        return count_files
 
-        matches = [x for x in obj if self.check_datetime(x)]
+    def count_labels(self):
+        """ Create frequency table of labeled raw text per file per package """
 
-        usr_list = []
+        labeled_df = self.load_results()
 
-        if matches:
-            for i in obj:
-                if i not in matches:
-                    try:
-                        res = self.check_name(i)
-                        usr_list.append(res)
-                    except:
-                        pass
+        count_labels = labeled_df.groupby(['text', 'file', 'package', 'label']).size().reset_index(name='count')
+        count_labels = count_labels.sort_values(by=['package', 'file'], ascending=True).reset_index(drop=True)
 
-        return usr_list
+        return count_labels
 
-    def common_names(self) -> dict:
-        """Add common given names in NL to keys dictionary; these may occur in free text like messages"""
+    def filter_label(self, label):
+        """ Filter text frequency dataframe per label """
 
-        name_file = Path('src') / 'Firstnames_NL.lst'
-        with name_file.open() as f:
-            names = [i.strip() for i in f.readlines()]
+        count_labels = self.count_labels
+        labeled_text = count_labels.loc[count_labels['label'] == label]
+        labeled_text = labeled_text.reset_index(drop=True)
 
-        # Create dictionary with original name and mingled substitute
-        exceptions = ['Van', 'Door', 'Can']
-        name_dict = {}
-        for name in set(names):
-            if len(name) > 1 and name not in exceptions:
-                name_dict[name] = '__name'
+        return labeled_text
 
-        return name_dict
+    def compare_names(self, label):
+        """ Create overview of original and hashed occurance of sensitive info """
+        # Load necessary data
+        anon_text = self.anon_text
+        all_keys = self.all_keys
+        raw_text = self.load_raw_text()
+        labeled_text = self.filter_label(label)
 
-    @staticmethod
-    def mingle(text: str) -> str:
-        """ Creates scrambled version with letters and numbers of entered word """
+        labeled_text = labeled_text.rename(columns={'count': 'labeled_count', 'text': 'labeled_text'})
 
-        text = str(text).lower()
+        labeled_text['text_hashed'] = ''
+        labeled_text['package_hashed'] = ''
 
-        if len(text) > 1:
-            pseudo = "__" + hashlib.md5(text.encode()).hexdigest()
-        else:
-            pseudo = ""
+        labeled_text['count_raw'] = ''
+        labeled_text['count_anon'] = ''
+        labeled_text['count_hashed_anon'] = ''
 
-        return pseudo
+        for row in range(labeled_text.shape[0]):
+            package = labeled_text['package'][row]
+            file = labeled_text['file'][row]
+            text = labeled_text['labeled_text'][row]
 
-    @staticmethod
-    def format_dict(obj: list) -> dict:
-        """Format irregular list of dictionaries and remove duplicates"""
+            try:
+                all_keys_lower = {i.lower(): v for i, v in all_keys[package].items()}
+                subt = all_keys_lower[text.lower().strip()]
+            except KeyError:
+                # self.logger.warning(f'     No hash for {text} in {package}\'s key file')
+                print(f'     No hash for {text} in {package}\'s key file')
+                subt = '__NOHASH__'
+            labeled_text.loc[row, 'text_hashed'] = subt
 
-        no_dupl = [i for n, i in enumerate(obj) if i not in obj[n + 1:]]
-        no_dupl.reverse()
-        new_dict = {k: v for d in no_dupl for k, v in d.items()}
+            package_hash = all_keys[package][package]
+            labeled_text.loc[row, 'package_hashed'] = package_hash
 
-        return new_dict
+            raw = raw_text['text'][(raw_text['package'] == package) & (raw_text['file'] == file)].reset_index(drop=True)
+            occ_raw = re.findall("(?<!instagram.com\/)(?<=[\s\'\"{@\/\.#])" + text.lower() + "(?=[\W])", str(raw[0]).lower())
+            occ_raw_stories = re.findall("(?<=stories\/)(?<=[\s\'\"{@\/\.#])" + text.lower() + "(?=[\W])", str(raw[0]).lower())
+            labeled_text.loc[row, 'count_raw'] = len(occ_raw) - len(occ_raw_stories)
 
-    @staticmethod
-    def format_list(obj: list) -> set:
-        """Flatten list and remove duplicates"""
+            anonymized = anon_text['text'][(anon_text['package'] == package_hash) & (anon_text['file'] == file)].reset_index(drop=True)
+            occ_text = re.findall(text.lower() + "(?=[\W])", str(anonymized[0]).lower())
+            labeled_text.loc[row, 'count_anon'] = len(occ_text)
 
-        flat_usr = [i for i in ParseJson.flatten(obj)]
-        try:
-            flat_usr = set(flat_usr)
-        except TypeError:
-            pass
-        return flat_usr
+            occ_subt = re.findall(subt + "(?=[\W])", str(anonymized[0]))
+            labeled_text.loc[row, 'count_hashed_anon'] = len(occ_subt)
 
-    @staticmethod
-    def flatten(obj: list) -> list:
-        """Flatten irregular list of lists"""
-        for el in obj:
-            if isinstance(el, collections.abc.Iterable) and not isinstance(el, (str, bytes)):
-                yield from ParseJson.flatten(el)
+        # Save dataframe with all labeled text and its (hashed) occurances in the anonymized packages
+        self.logger.info(f'     Save {label}\'s overview to occurances_{label}.csv')
+        path = Path(self.results_folder.parent, 'occurances')
+        path.mkdir(parents=True, exist_ok=True)
+        labeled_text.to_csv(path / f'occurances_{label}.csv', index=False)
+
+        # Evaluation of the efficiency of anonymization
+        self.statistics(labeled_text, label)
+        data_outcome = self.accuracy(labeled_text, label)
+
+        return data_outcome
+
+    def compare_labels(self, label):
+        """ Create overview of original and hashed occurance of sensitive info """
+
+        # Load necessary data
+        anon_text = self.anon_text
+        all_keys = self.all_keys
+        raw_text = self.load_raw_text()
+        labeled_text = self.filter_label(label)
+
+        labeled_text_long = labeled_text.rename(columns={'count': 'labeled_count', 'text': 'labeled_text'})
+
+        labeled_text = labeled_text.groupby(['label', 'file', 'package']).size().reset_index(name='count')
+        labeled_text = labeled_text.rename(columns={'count': 'labeled_count', 'label': 'labeled_text'})
+
+        labeled_text['text_hashed'] = ''
+        labeled_text['package_hashed'] = ''
+
+        labeled_text['count_raw'] = ''
+        labeled_text['count_anon'] = ''
+        labeled_text['count_hashed_anon'] = ''
+
+        for row in range(labeled_text.shape[0]):
+            package = labeled_text['package'][row]
+            file = labeled_text['file'][row]
+            text = list(labeled_text_long['labeled_text'][(labeled_text_long['package'] == package) &
+                                                     (labeled_text_long['file'] == file)])
+
+            if label == 'Email':
+                subt = '__emailaddress'
+            elif label == 'Phone':
+                subt = '__phonenumber'
             else:
-                yield el
+                subt = '__url'
+            labeled_text.loc[row, 'text_hashed'] = subt
+
+            package_hash = all_keys[package][package]
+            labeled_text.loc[row, 'package_hashed'] = package_hash
+
+            raw = raw_text['text'][(raw_text['package'] == package) & (raw_text['file'] == file)].reset_index(
+                drop=True)
+            anonymized = anon_text['text'][
+                (anon_text['package'] == package_hash) & (anon_text['file'] == file)].reset_index(drop=True)
+
+            occ_raw = occ_text = 0
+            for item in text:
+                try:
+                    res_raw = re.findall(item + "(?=[\W])", str(raw[0]))
+                    res_anon = re.findall(item + "(?=[\W])", str(anonymized[0]))
+                except re.error:
+                    res_raw = re.findall(item.split('+')[1] + "(?=[\W])", str(raw[0]))
+                    res_anon = re.findall(item.split('+')[1] + "(?=[\W])", str(anonymized[0]))
+
+                occ_raw = occ_raw + len(res_raw)
+                occ_text = occ_text + len(res_anon)
+
+            labeled_text.loc[row, 'count_raw'] = occ_raw
+            labeled_text.loc[row, 'count_anon'] = occ_text
+
+            occ_subt = re.findall(subt + "(?=[\W])", str(anonymized[0]))
+            labeled_text.loc[row, 'count_hashed_anon'] = len(occ_subt)
+
+        # Save dataframe with all labeled text and its (hashed) occurances in the anonymized packages
+        self.logger.info(f'     Save {label}\'s overview to occurances_{label}.csv')
+        path = Path(self.results_folder.parent, 'occurances')
+        path.mkdir(parents=True, exist_ok=True)
+        labeled_text.to_csv(path / f'occurances_{label}.csv', index=False)
+
+        # Evaluation of the efficiency of anonymization
+        self.statistics(labeled_text, label)
+        data_outcome = self.accuracy(labeled_text, label)
+
+        return data_outcome
+
+    def true_positives(self, check):
+        """" View the correctly hashed usernames """
+
+        correct = check[(check['count_hashed_anon'] == check['count_raw']) & (check['count_anon'] == 0)]
+        correct = correct.reset_index(drop=True)
+
+        return correct, 'true_positives'
+
+    def false_negatives(self, check):
+        """ View the false negatives (the usernames that were missed in the anotation process) """
+
+        missed = check[(check['count_anon'] > 0)]
+        missed = missed.reset_index(drop=True)
+
+        return missed, 'false_negatives'
+
+    def false_positives(self, check):
+        """ View the false positives (the words that were hashed when they shouldn't have) """
+
+        toomuch = check[check['count_hashed_anon'] > check['count_raw']]
+        toomuch = toomuch.reset_index(drop=True)
+
+        return toomuch, 'false_positives'
+
+    def suspicious_hashes(self, check):
+        """ View words of which both the original and the hash no longer appear in the anonymized packages"""
+
+        weird = check[(check['count_hashed_anon'] < check['count_raw']) & (
+                    check['count_anon'] == 0)]
+        weird = weird.reset_index(drop=True)
+
+        return weird, 'suspicious_hashes'
+
+    def statistics(self, check, label):
+        """" Save the TP, FP, FN and suspiciously hashed info """
+
+        functions = [self.true_positives(check), self.false_negatives(check), self.false_positives(check), self.suspicious_hashes(check)]
+
+        for function in functions:
+            statistics = function[0]
+            path = Path(self.results_folder.parent, function[1])
+            path.mkdir(parents=True, exist_ok=True)
+            statistics.to_csv(Path(path, f'{function[1]}_{label}.csv'), index=False)
+
+    def accuracy(self, check, label):
+        """ Create dataframe with statistics to evaluate the efficiency of the anonymization process """
+
+        TP = self.true_positives(check)[0].groupby(['file']).size().reset_index(name='TP')
+        FN = self.false_negatives(check)[0].groupby(['file']).size().reset_index(name='FN')
+        FP = self.false_positives(check)[0].groupby(['file']).size().reset_index(name='FP')
+        tot = check.groupby(['file']).size().reset_index(name='total')
+
+        df_outcome = reduce(lambda left, right: pd.merge(left, right, how='outer', on='file'), [TP, FN, FP, tot])
+
+        df_outcome['Recall'] = ''
+        df_outcome['Precision'] = ''
+        df_outcome['F1'] = ''
+
+        for i in range(df_outcome.shape[0]):
+            file = df_outcome['file'][i]
+
+            original = list(check['labeled_count'][check['file'] == file])
+            anonymized = list(check['count_hashed_anon'][check['file'] == file])
+
+            df_outcome.loc[i, 'Recall'] = recall_score(original, anonymized, average='weighted', zero_division=0)
+            df_outcome.loc[i, 'Precision'] = precision_score(original, anonymized, average='weighted', zero_division=0)
+            df_outcome.loc[i, 'F1'] = f1_score(original, anonymized, average='weighted', zero_division=0)
+
+        df_outcome.loc[i+1, 'file'] = 'total'
+        df_outcome.loc[i+1, ['TP', 'FN', 'FP', 'total']] = list(df_outcome.sum(numeric_only=True))
+        df_outcome.loc[i+1, ['Recall', 'Precision', 'F1']] = list(df_outcome.mean())[-3:]
+        df_outcome.insert(0, 'label', label)
+
+        return df_outcome
+
+
+def init_logging(log_file: Path):
+    """
+    Initialise Python logger
+    :param log_file: Path to the log file.
+    """
+    logger = logging.getLogger('validating')
+    logger.setLevel('INFO')
+
+    # creating a formatter
+    formatter = logging.Formatter('- %(name)s - %(levelname)-8s: %(message)s')
+
+    # set up logging to file
+    fh = logging.FileHandler(log_file, 'w', 'utf-8')
+    fh.setLevel(logging.INFO)
+
+    # Set up logging to console
+    ch = logging.StreamHandler()
+    ch.setLevel(logging.INFO)
+
+    # Set handler format
+    fh.setFormatter(formatter)
+    ch.setFormatter(formatter)
+
+    # Add the handler to the root logger
+    logger.addHandler(fh)
+    logger.addHandler(ch)
+
+    return logger
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Extract usernames from nested json files.')
-    parser.add_argument("--input_folder", "-i", help="Enter path to folder containing json files",
+    parser = argparse.ArgumentParser(description='Validatie anonymization process.')
+    parser.add_argument("--results_folder", "-r", help="Enter path to folder where result of Label-Studio can be found",
                         default=".")
-    parser.add_argument("--output_folder", "-o", help="Enter path to folder where results will be saved",
+    parser.add_argument("--processed_folder", "-p", help="Enter path to folder where the processed (i.e., de-identified) data packages can be found",
                         default=".")
+    parser.add_argument("--keys_folder", "-k", help="Enter path to folder where the key files can be found",
+                        default=".")
+    parser.add_argument("--log_file", "-l", help="Enter path to log file",
+                        default="log_eval_insta.txt")
+
     args = parser.parse_args()
 
-    input_folder = Path(args.input_folder)
-    output_folder = Path(args.output_folder)
-    output_folder.mkdir(parents=True, exist_ok=True)
+    logger = init_logging(Path(args.log_file))
+    logger.info(f"Started validation process:")
 
-    parser = ParseJson(input_folder, output_folder)
-    key_dict = parser.create_keys()
+    evalanonym = ValidateAnonymization(Path(args.results_folder), Path(args.processed_folder), Path(args.keys_folder))
+    evalanonym.count_files()
 
-    key_series = pd.Series(key_dict, name='subt')
-    key_series.to_csv(output_folder / 'keys.csv', index_label='id', header=True)
+    labels = ['Username', 'Name', 'Email', 'Phone', 'URL']
+
+    df_outcome = pd.DataFrame()
+    for label in labels:
+        if label == 'Username' or label == 'Name':
+            data_outcome = evalanonym.compare_names(label)
+        else:
+            data_outcome = evalanonym.compare_labels(label)
+        df_outcome = df_outcome.append(data_outcome)
+
+    path = Path(Path(args.results_folder).parent, 'Validation_Outcome.csv')
+    logger.info(f"     Saving validation outcome to {path}")
+    df_outcome.to_csv(path, index=False)
+
+    logger.info(f"Finished! :) ")
 
 if __name__ == '__main__':
     main()

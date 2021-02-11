@@ -56,6 +56,9 @@ $ cd anonymize-ddp
 
 # Install dependencies
 pip install -r requirements.txt
+
+# When experiencing difficulties
+pip install -r requirements.txt -f https://download.pytorch.org/whl/torch_stable.html
 ```
 N.B. When experiencing difficulties with installing torch, have a look at the [PyTorch website](https://pytorch.org/) for more information. When issues arise concerning the Anonymize software, make sure that no prior version is installed (```$ pip uninstall anonymize_UU``` and/or ```$ pip uninstall anonymoUUs```).
 
@@ -75,7 +78,7 @@ Instagram will deliver your data in a compressed zip folder with format **userna
 
 Before you can run the software, you need to make sure that the [src folder](/src) contains the following items:
 * **Facial blurring software**: The *frozen_east_text_detection.pb* software, necessary for the facial blurring of images and videos, can be downloaded from [GitHub](https://github.com/oyyd/frozen_east_text_detection.pb) 
-* **Participant file**\*: An overview of all participants' usernames and participant IDs (e.g., participants.csv)
+* **Participant file**\*: An overview of all participants' usernames and participant IDs (e.g., participants.csv). We recommend placing this file in the `src` folder. However, you can save this file anywhere you like, as long as you refer to the path correctly while running the software.
 
 **\*** N.B. Only relevant for participant based studies with *predefined* participant IDs. This file can have whatever name you prefer, as long as it is saved as .csv and contains 2 columns; the first being the original instagram handles (e.g., janjansen) and the second the participant IDs (e.g., PP001).
 
@@ -87,8 +90,8 @@ When all preceding steps are taken, the data download packages can be pseudonimi
 $ python src/anonymizing_instagram_uu.py [OPTIONS]
 
 Options:
-  -i  path to folder containing zipfiles (i.e., -i data)
-  -o  path to folder where files will be unpacked and pseudonimized (i.e., -o results/output)
+  -i  path to folder containing zipfiles (i.e., -i data/raw)
+  -o  path to folder where files will be unpacked and pseudonimized (i.e., -o data/processed)
   -l  path to log file
   -p  path to participants list to use corresponding participant IDs (e.g., -p src/participants.csv)
   -c  replace capitalized names only (when not entering this option, the default = False; not case sensitive) (e.g., -c)

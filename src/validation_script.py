@@ -94,6 +94,8 @@ class ValidateAnonymization:
                         inputs = pd.DataFrame(inputs)
                         labeled_df = labeled_df.append(inputs, ignore_index=True)
 
+        labeled_df = labeled_df[labeled_df['package'] == 'horsesarecool52_20201020']
+
         return labeled_df
 
     def count_files(self):
@@ -324,7 +326,7 @@ class ValidateAnonymization:
         for i in range(df_outcome.shape[0]):
             file = df_outcome['file'][i]
 
-            original = list(check['labeled_count'][check['file'] == file])
+            original = list(check['count_raw'][check['file'] == file])
             anonymized = list(check['count_hashed_anon'][check['file'] == file])
 
             df_outcome.loc[i, 'Recall'] = recall_score(original, anonymized, average='weighted', zero_division=0)

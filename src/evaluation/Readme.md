@@ -1,9 +1,7 @@
-Prerequisites
-
 # Evaluation
 
-Evaluation script for the anonymization script
-For this evaluation an example data set which includes:
+Evaluation script for the anonymization of DDPs
+For this evaluation an example data set is used which includes:
 * A set of DDPs with nonsense content
 * A file with results of manually labeling the PII in these DDPs
 
@@ -44,9 +42,9 @@ Options:
 
 ```
 
-## Run softwareto the 
+## Perform evaluation
 
-When all preceding steps are taken, the evaluation can be performed. Run the program with (at least) the arguments `...
+When all preceding steps are taken, the evaluation can be performed. 
 
 ```
 $ cd src/evaluation

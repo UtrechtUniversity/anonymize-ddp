@@ -89,6 +89,7 @@ class ParseJson:
                             key_dict[name] = '__name'
                 except:
                     tags = re.findall('(?<=\s@)[\w.]{3,30}(?=[\W])', str(obj))
+                    tags += re.findall('(?<=Shared )[\w.]{3,30}(?=[\'s])', str(obj))
                     for tag in tags:
                         key_dict[tag] = '__name'
 

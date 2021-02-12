@@ -2,6 +2,7 @@ from pathlib import Path
 import pandas as pd
 from functools import reduce
 from sklearn.metrics import f1_score, precision_score, recall_score
+import numpy as np
 import logging
 import argparse
 import json
@@ -94,24 +95,26 @@ class ValidateAnonymization:
                         inputs = pd.DataFrame(inputs)
                         labeled_df = labeled_df.append(inputs, ignore_index=True)
 
-        labeled_df = labeled_df[labeled_df['package'] == 'horsesarecool52_20201020']
-
         return labeled_df
 
-    def count_files(self):
+    def count_files(self, self_outcome):
         """ Create frequency table of labeled raw text per file per package """
 
-        labeled_df = self.load_results()
+        labels = self_outcome['label'].unique().tolist()
+        files = self_outcome['file'].unique().tolist()
 
-        count_files = labeled_df.groupby(['label', 'file']).size().reset_index(name='count')
-        count_files = count_files.pivot(index='file', columns='label', values='count').reset_index().rename_axis(None,axis=1)
-        count_files = count_files[['file', 'Username', 'Name', 'Email', 'Phone', 'URL']]
-        count_files = count_files.rename(columns={'Username': 'Usernames', 'Name': 'First names', 'Email': 'E-mail'})
+        final = self_outcome[['label', 'file', 'total']].set_index(['label', 'file'])
+        count_files = pd.DataFrame(columns = labels, index = files)
 
-        count_files['Total'] = count_files.sum(1)
+        for label in labels:
+            for file in files:
+                try:
+                    count_files.loc[file, label] = final.loc[label, file]['total']
+                except KeyError:
+                    count_files.loc[file, label] = np.nan
 
         path = Path(self.results_folder.parent, f'descriptives.csv')
-        count_files.to_csv(path, index=False)
+        count_files.to_csv(path, index=True)
 
         return count_files
 
@@ -161,7 +164,7 @@ class ValidateAnonymization:
                 subt = all_keys_lower[text.lower().strip()]
             except KeyError:
                 # self.logger.warning(f'     No hash for {text} in {package}\'s key file')
-                print(f'     No hash for {text} in {package}\'s key file')
+                print(f'     No hash for {text} from {file} in {package}\'s key file')
                 subt = '__NOHASH__'
             labeled_text.loc[row, 'text_hashed'] = subt
 
@@ -312,10 +315,10 @@ class ValidateAnonymization:
     def accuracy(self, check, label):
         """ Create dataframe with statistics to evaluate the efficiency of the anonymization process """
 
-        TP = self.true_positives(check)[0].groupby(['file']).size().reset_index(name='TP')
-        FN = self.false_negatives(check)[0].groupby(['file']).size().reset_index(name='FN')
-        FP = self.false_positives(check)[0].groupby(['file']).size().reset_index(name='FP')
-        tot = check.groupby(['file']).size().reset_index(name='total')
+        TP = self.true_positives(check)[0].groupby(['file'])['count_raw'].sum().reset_index(name='TP')
+        FN = self.false_negatives(check)[0].groupby(['file'])['count_raw'].sum().reset_index(name='FN')
+        FP = self.false_positives(check)[0].groupby(['file'])['count_raw'].sum().reset_index(name='FP')
+        tot = check.groupby(['file'])['count_raw'].sum().reset_index(name='total')
 
         df_outcome = reduce(lambda left, right: pd.merge(left, right, how='outer', on='file'), [TP, FN, FP, tot])
 
@@ -388,7 +391,6 @@ def main():
     logger.info(f"Started validation process:")
 
     evalanonym = ValidateAnonymization(Path(args.results_folder), Path(args.processed_folder), Path(args.keys_folder))
-    evalanonym.count_files()
 
     labels = ['Username', 'Name', 'Email', 'Phone', 'URL']
 
@@ -403,6 +405,8 @@ def main():
     path = Path(Path(args.results_folder).parent, 'Validation_Outcome.csv')
     logger.info(f"     Saving validation outcome to {path}")
     df_outcome.to_csv(path, index=False)
+
+    evalanonym.count_files(df_outcome)
 
     logger.info(f"Finished! :) ")
 

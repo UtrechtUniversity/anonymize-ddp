@@ -9,3 +9,4 @@ torchvision==0.6.1
 imutils==0.5.3
 zipp==0.6.0
 progressbar2==3.51.4
+scikit-learn==0.24.1

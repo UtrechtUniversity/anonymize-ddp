@@ -172,11 +172,14 @@ class ValidateAnonymization:
             labeled_text.loc[row, 'package_hashed'] = package_hash
 
             raw = raw_text['text'][(raw_text['package'] == package) & (raw_text['file'] == file)].reset_index(drop=True)
-            occ_raw = re.findall("(?<!instagram.com\/)(?<=[\s\'\"{@\/\.#])" + text.lower() + "(?=[\W])", str(raw[0]).lower())
-            occ_raw_stories = re.findall("(?<=stories\/)(?<=[\s\'\"{@\/\.#])" + text.lower() + "(?=[\W])", str(raw[0]).lower())
+            occ_raw = re.findall("(?<!instagram.com\/)(?<=[\s\'\"{@\/\.#])" + text.lower() + "(?=[\W])",
+                                 str(raw[0]).lower())
+            occ_raw_stories = re.findall("(?<=stories\/)(?<=[\s\'\"{@\/\.#])" + text.lower() + "(?=[\W])",
+                                         str(raw[0]).lower())
             labeled_text.loc[row, 'count_raw'] = len(occ_raw) - len(occ_raw_stories)
 
-            anonymized = anon_text['text'][(anon_text['package'] == package_hash) & (anon_text['file'] == file)].reset_index(drop=True)
+            anonymized = anon_text['text'][
+                (anon_text['package'] == package_hash) & (anon_text['file'] == file)].reset_index(drop=True)
             occ_text = re.findall(text.lower() + "(?=[\W])", str(anonymized[0]).lower())
             labeled_text.loc[row, 'count_anon'] = len(occ_text)
 
@@ -206,7 +209,7 @@ class ValidateAnonymization:
 
         labeled_text_long = labeled_text.rename(columns={'count': 'labeled_count', 'text': 'labeled_text'})
 
-        labeled_text = labeled_text.groupby(['label', 'file', 'package']).size().reset_index(name='count')
+        labeled_text = labeled_text.groupby(['label', 'file', 'package'])['count'].sum().reset_index(name='count')
         labeled_text = labeled_text.rename(columns={'count': 'labeled_count', 'label': 'labeled_text'})
 
         labeled_text['text_hashed'] = ''
@@ -220,7 +223,7 @@ class ValidateAnonymization:
             package = labeled_text['package'][row]
             file = labeled_text['file'][row]
             text = list(labeled_text_long['labeled_text'][(labeled_text_long['package'] == package) &
-                                                     (labeled_text_long['file'] == file)])
+                                                          (labeled_text_long['file'] == file)])
 
             if label == 'Email':
                 subt = '__emailaddress'
@@ -240,15 +243,22 @@ class ValidateAnonymization:
 
             occ_raw = occ_text = 0
             for item in text:
-                try:
-                    res_raw = re.findall(item + "(?=[\W])", str(raw[0]))
-                    res_anon = re.findall(item + "(?=[\W])", str(anonymized[0]))
-                except re.error:
-                    res_raw = re.findall(item.split('+')[1] + "(?=[\W])", str(raw[0]))
-                    res_anon = re.findall(item.split('+')[1] + "(?=[\W])", str(anonymized[0]))
+                url = 'https:\S*instagram\w*.com\S*'
+                if re.match(url, str(item)):
+                    pattern = url + '(?=[\"\'\.\s,}])'
+                    occ_raw = len(re.findall(pattern, str(raw[0])))
+                    occ_text = len(re.findall(pattern, str(anonymized[0])))
+                else:
+                    try:
+                        pattern = item + "?(?=[\W])"
+                        res_raw = re.findall(pattern, str(raw[0]))
+                        res_anon = re.findall(pattern, str(anonymized[0]))
+                    except re.error:
+                        res_raw = re.findall(item.split('+')[1] + "(?=[\W])", str(raw[0]))
+                        res_anon = re.findall(item.split('+')[1] + "(?=[\W])", str(anonymized[0]))
 
-                occ_raw = occ_raw + len(res_raw)
-                occ_text = occ_text + len(res_anon)
+                    occ_raw = occ_raw + len(res_raw)
+                    occ_text = occ_text + len(res_anon)
 
             labeled_text.loc[row, 'count_raw'] = occ_raw
             labeled_text.loc[row, 'count_anon'] = occ_text

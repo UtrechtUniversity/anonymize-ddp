@@ -1,245 +1,140 @@
 from pathlib import Path
 import pandas as pd
-from functools import reduce
 from sklearn.metrics import f1_score, precision_score, recall_score
-import numpy as np
 import logging
 import argparse
-import json
-import csv
 import re
+from import_files import ImportFiles
 
 
 class ValidateAnonymization:
     """ Detect and anonymize personal information in Instagram data packages"""
 
-    def __init__(self, results_folder: Path, processed_folder: Path, keys_folder: Path):
+    def __init__(self, results_folder: Path, processed_folder: Path, keys_folder: Path,
+                 package, package_hashed, key_file, result, raw_file, labels):
 
         self.logger = logging.getLogger('validating')
         self.results_folder = results_folder
         self.processed_folder = processed_folder
         self.keys_folder = keys_folder
 
-        self.all_keys = self.load_keys()
-        self.anon_text = self.load_packages()
-        self.count_labels = self.count_labels()
+        self.package = package
+        self.package_hashed = package_hashed
+        self.key_file = key_file
+        self.result = result
+        self.raw_file = raw_file
+        self.labels = labels
 
-    def load_keys(self) -> dict:
-        """ Load and merge all key files (created in the de-identification process) """
+        self.regex = r"(?:(?<=\\n)|(?<=[\W]))(?:(?<!instagram.com\/)(?<!stories\/)){}(?=[\W])"
+        self.regex2 = '{}(?=[\W])'
 
-        key_files = list(self.keys_folder.glob('*'))
-        all_keys = {}
-
-        for i in key_files:
-            keys = {}
-            with open(i, 'r') as data:
-                for line in csv.reader(data):
-                    keys.update({line[0]: line[1]})
-                    if line[1] == i.stem.split('keys_')[1]:
-                        username = line[0]
-            all_keys.update({username: keys})
-
-        return all_keys
-
-    def load_packages(self):
+    def open_package(self):
         """ Load and merge de-identified data packages into a dataframe"""
 
         anon_text = pd.DataFrame()
-        packages = list(self.processed_folder.glob("*"))
+        folder = self.processed_folder / self.package_hashed
 
-        for package in packages:
-            files = package.glob('*.json')
-            for file in files:
-                try:
-                    with open(file, 'r', encoding='utf8') as f2:
-                        data = f2.read()
-                        input_data = {'text': [data], 'file': [file.name], 'package': [package.name]}
-                        df = pd.DataFrame(input_data)
-                        anon_text = anon_text.append(df, ignore_index=True)
-                except:
-                    self.logger.warning(f'      {file} of package {package} is not added')
+        files = list(folder.glob('*.json'))
+        for file in files:
+            try:
+                with open(file, 'r', encoding='utf8') as f2:
+                    data = f2.read()
+                    input_data = {'text': [data], 'file': [file.name], 'package': [self.package]}
+                    df = pd.DataFrame(input_data)
+                    anon_text = anon_text.append(df, ignore_index=True)
+            except:
+                self.logger.warning(f'      {file} of package {self.package} is not added')
 
         return anon_text
 
-    def load_raw_text(self):
-        """ Load the raw file used in Label-Studio for labeling """
-
-        raw_text = pd.read_csv(self.results_folder.parent / 'text_packages.csv')
-        raw_text['file'] = raw_text['file'] + '.json'
-
-        return raw_text
-
-    def load_results(self):
-        """ Load Label-Studio results (labeled raw data packages) into dataframe """
-
-        # Load results (json format) of label-studio
-        label_results = self.results_folder
-        with label_results.open(encoding="utf-8-sig") as f:
-            label_results = json.load(f)
-
-        # Determine length of label_results(i.e., number of labeled documents )
-        length = 0
-        for item in label_results:
-            length += 1
-
-        # Create dataframe with most important results: labeled text, type of label, file and package
-        labeled_df = pd.DataFrame()
-        for an in range(length):
-            file = label_results[an]['data']['file'] + '.json'
-            package = label_results[an]['data']['package']
-            for i in label_results[an]['completions']:
-                for j in i['result']:
-                    if len(j['value']['text']) > 2:
-                        inputs = {'text': [j['value']['text'].strip()], 'label': [j['value']['labels'][0]],
-                                  'file': [file], 'package': [package]}
-                        inputs = pd.DataFrame(inputs)
-                        labeled_df = labeled_df.append(inputs, ignore_index=True)
-
-        return labeled_df
-
-    def count_files(self, self_outcome):
+    def filter_labels(self, label):
         """ Create frequency table of labeled raw text per file per package """
 
-        labels = self_outcome['label'].unique().tolist()
-        files = self_outcome['file'].unique().tolist()
-
-        final = self_outcome[['label', 'file', 'total']].set_index(['label', 'file'])
-        count_files = pd.DataFrame(columns = labels, index = files)
-
-        for label in labels:
-            for file in files:
-                try:
-                    count_files.loc[file, label] = final.loc[label, file]['total']
-                except KeyError:
-                    count_files.loc[file, label] = np.nan
-
-        path = Path(self.results_folder.parent, f'descriptives.csv')
-        count_files.to_csv(path, index=True)
-
-        return count_files
-
-    def count_labels(self):
-        """ Create frequency table of labeled raw text per file per package """
-
-        labeled_df = self.load_results()
-
-        count_labels = labeled_df.groupby(['text', 'file', 'package', 'label']).size().reset_index(name='count')
+        count_labels = self.result.groupby(['labeled_text', 'file', 'package', 'label']).size().reset_index(name='labeled_count')
         count_labels = count_labels.sort_values(by=['package', 'file'], ascending=True).reset_index(drop=True)
 
-        return count_labels
-
-    def filter_label(self, label):
-        """ Filter text frequency dataframe per label """
-
-        count_labels = self.count_labels
         labeled_text = count_labels.loc[count_labels['label'] == label]
         labeled_text = labeled_text.reset_index(drop=True)
 
         return labeled_text
 
-    def compare_names(self, label):
-        """ Create overview of original and hashed occurance of sensitive info """
-        # Load necessary data
-        anon_text = self.anon_text
-        all_keys = self.all_keys
-        raw_text = self.load_raw_text()
-        labeled_text = self.filter_label(label)
+    def execute(self):
+        """ Per DDP per file, count original and hashed PII """
 
-        labeled_text = labeled_text.rename(columns={'count': 'labeled_count', 'text': 'labeled_text'})
+        anon_text = self.open_package()
+        outcome_df = pd.DataFrame()
 
-        labeled_text['text_hashed'] = ''
-        labeled_text['package_hashed'] = ''
-
-        labeled_text['count_raw'] = ''
-        labeled_text['count_anon'] = ''
-        labeled_text['count_hashed_anon'] = ''
-
-        for row in range(labeled_text.shape[0]):
-            package = labeled_text['package'][row]
-            file = labeled_text['file'][row]
-            text = labeled_text['labeled_text'][row]
-
-            try:
-                all_keys_lower = {i.lower(): v for i, v in all_keys[package].items()}
-                subt = all_keys_lower[text.lower().strip()]
-            except KeyError:
-                # self.logger.warning(f'     No hash for {text} in {package}\'s key file')
-                print(f'     No hash for {text} from {file} in {package}\'s key file')
-                subt = '__NOHASH__'
-            labeled_text.loc[row, 'text_hashed'] = subt
-
-            package_hash = all_keys[package][package]
-            labeled_text.loc[row, 'package_hashed'] = package_hash
-
-            raw = raw_text['text'][(raw_text['package'] == package) & (raw_text['file'] == file)].reset_index(drop=True)
-            occ_raw = re.findall("(?<!instagram.com\/)(?<=[\s\'\"{@\/\.#])" + text.lower() + "(?=[\W])",
-                                 str(raw[0]).lower())
-            occ_raw_stories = re.findall("(?<=stories\/)(?<=[\s\'\"{@\/\.#])" + text.lower() + "(?=[\W])",
-                                         str(raw[0]).lower())
-            labeled_text.loc[row, 'count_raw'] = len(occ_raw) - len(occ_raw_stories)
-
-            anonymized = anon_text['text'][
-                (anon_text['package'] == package_hash) & (anon_text['file'] == file)].reset_index(drop=True)
-            occ_text = re.findall(text.lower() + "(?=[\W])", str(anonymized[0]).lower())
-            labeled_text.loc[row, 'count_anon'] = len(occ_text)
-
-            occ_subt = re.findall(subt + "(?=[\W])", str(anonymized[0]))
-            labeled_text.loc[row, 'count_hashed_anon'] = len(occ_subt)
-
-        # Save dataframe with all labeled text and its (hashed) occurances in the anonymized packages
-        self.logger.info(f'     Save {label}\'s overview to occurances_{label}.csv')
-        path = Path(self.results_folder.parent, 'occurances')
-        path.mkdir(parents=True, exist_ok=True)
-        labeled_text.to_csv(path / f'occurances_{label}.csv', index=False)
-
-        # Evaluation of the efficiency of anonymization
-        self.statistics(labeled_text, label)
-        data_outcome = self.accuracy(labeled_text, label)
-
-        return data_outcome
-
-    def compare_labels(self, label):
-        """ Create overview of original and hashed occurance of sensitive info """
-
-        # Load necessary data
-        anon_text = self.anon_text
-        all_keys = self.all_keys
-        raw_text = self.load_raw_text()
-        labeled_text = self.filter_label(label)
-
-        labeled_text_long = labeled_text.rename(columns={'count': 'labeled_count', 'text': 'labeled_text'})
-
-        labeled_text = labeled_text.groupby(['label', 'file', 'package'])['count'].sum().reset_index(name='count')
-        labeled_text = labeled_text.rename(columns={'count': 'labeled_count', 'label': 'labeled_text'})
-
-        labeled_text['text_hashed'] = ''
-        labeled_text['package_hashed'] = ''
-
-        labeled_text['count_raw'] = ''
-        labeled_text['count_anon'] = ''
-        labeled_text['count_hashed_anon'] = ''
-
-        for row in range(labeled_text.shape[0]):
-            package = labeled_text['package'][row]
-            file = labeled_text['file'][row]
-            text = list(labeled_text_long['labeled_text'][(labeled_text_long['package'] == package) &
-                                                          (labeled_text_long['file'] == file)])
+        for label in self.labels:
+            labeled_text = self.filter_labels(label)
+            self.logger.info(f'      Counting text labeled as \'{label}\'')
 
             if label == 'Email':
                 subt = '__emailaddress'
+                outcome = self.compare_labels(anon_text, labeled_text, subt)
             elif label == 'Phone':
                 subt = '__phonenumber'
-            else:
+                outcome = self.compare_labels(anon_text, labeled_text, subt)
+            elif label == 'URL':
                 subt = '__url'
+                outcome = self.compare_labels(anon_text, labeled_text, subt)
+            else:
+                outcome = self.compare_names(anon_text, labeled_text)
+
+            outcome_df = outcome_df.append(outcome)
+
+        return outcome_df
+
+    def compare_names(self, anon_text, labeled_text):
+        """ Create overview of original and hashed occurance of sensitive info """
+
+        # Add new columns to labeled_text
+        labeled_text = labeled_text.reindex(columns=labeled_text.columns.tolist() + ['text_hashed', 'package_hashed',
+                                                                                     'count_raw', 'count_anon', 'count_hashed_anon'])
+        labeled_text['package_hashed'] = self.package_hashed
+
+        # Count labeled_text and hashed_text occurances in raw and de-identified DDPs
+        for row, file in enumerate(labeled_text['file']):
+            text = labeled_text['labeled_text'][row]
+
+            try:
+                key_file_lower = {i.lower(): v for i, v in self.key_file.items()}
+                subt = key_file_lower[text.lower().strip()]
+            except KeyError:
+                self.logger.warning(f'          No hash for {text} from {file} in {self.package}\'s key file')
+                subt = '__NOHASH__'
             labeled_text.loc[row, 'text_hashed'] = subt
 
-            package_hash = all_keys[package][package]
-            labeled_text.loc[row, 'package_hashed'] = package_hash
+            raw = self.raw_file['text'][self.raw_file['file'] == file].reset_index(drop=True)
+            occ_raw = re.findall(self.regex.format(text.lower()), str(raw[0]).lower())
+            labeled_text.loc[row, 'count_raw'] = len(occ_raw)
 
-            raw = raw_text['text'][(raw_text['package'] == package) & (raw_text['file'] == file)].reset_index(
-                drop=True)
-            anonymized = anon_text['text'][
-                (anon_text['package'] == package_hash) & (anon_text['file'] == file)].reset_index(drop=True)
+            anonymized = anon_text['text'][anon_text['file'] == file].reset_index(drop=True)
+            occ_text = re.findall(self.regex2.format(text.lower()), str(anonymized[0]).lower())
+            labeled_text.loc[row, 'count_anon'] = len(occ_text)
+
+            occ_subt = re.findall(self.regex2.format(subt), str(anonymized[0]))
+            labeled_text.loc[row, 'count_hashed_anon'] = len(occ_subt)
+
+        return labeled_text
+
+    def compare_labels(self, anon_text, labeled_text, subt):
+        """ Create overview of original and hashed occurance of sensitive info """
+
+        labeled_text_long = labeled_text
+
+        # Add new columns to labeled_text
+        labeled_text = labeled_text.groupby(['label', 'file', 'package'])['labeled_count'].sum().reset_index(name='labeled_count')
+        labeled_text = labeled_text.reindex(columns=labeled_text.columns.tolist() + ['text_hashed', 'package_hashed',
+                                                                                     'count_raw', 'count_anon', 'count_hashed_anon'])
+        labeled_text['package_hashed'] = self.package_hashed
+        labeled_text['text_hashed'] = subt
+
+        # Count labeled_text and hashed_text occurances in raw and de-identified DDPs
+        for row, file in enumerate(labeled_text['file']):
+            text = list(labeled_text_long['labeled_text'][labeled_text_long['file'] == file])
+
+            raw = self.raw_file['text'][(self.raw_file['file'] == file)].reset_index(drop=True)
+            anonymized = anon_text['text'][anon_text['file'] == file].reset_index(drop=True)
 
             occ_raw = occ_text = 0
             for item in text:
@@ -250,12 +145,12 @@ class ValidateAnonymization:
                     occ_text = len(re.findall(pattern, str(anonymized[0])))
                 else:
                     try:
-                        pattern = item + "?(?=[\W])"
+                        pattern = self.regex2.format(item)
                         res_raw = re.findall(pattern, str(raw[0]))
                         res_anon = re.findall(pattern, str(anonymized[0]))
                     except re.error:
-                        res_raw = re.findall(item.split('+')[1] + "(?=[\W])", str(raw[0]))
-                        res_anon = re.findall(item.split('+')[1] + "(?=[\W])", str(anonymized[0]))
+                        res_raw = re.findall(self.regex2.format(item.split('+')[1]), str(raw[0]))
+                        res_anon = re.findall(self.regex2.format(item.split('+')[1]), str(anonymized[0]))
 
                     occ_raw = occ_raw + len(res_raw)
                     occ_text = occ_text + len(res_anon)
@@ -263,95 +158,108 @@ class ValidateAnonymization:
             labeled_text.loc[row, 'count_raw'] = occ_raw
             labeled_text.loc[row, 'count_anon'] = occ_text
 
-            occ_subt = re.findall(subt + "(?=[\W])", str(anonymized[0]))
+            occ_subt = re.findall(self.regex2.format(subt), str(anonymized[0]))
             labeled_text.loc[row, 'count_hashed_anon'] = len(occ_subt)
 
-        # Save dataframe with all labeled text and its (hashed) occurances in the anonymized packages
-        self.logger.info(f'     Save {label}\'s overview to occurances_{label}.csv')
-        path = Path(self.results_folder.parent, 'occurances')
-        path.mkdir(parents=True, exist_ok=True)
-        labeled_text.to_csv(path / f'occurances_{label}.csv', index=False)
+        return labeled_text
 
-        # Evaluation of the efficiency of anonymization
-        self.statistics(labeled_text, label)
-        data_outcome = self.accuracy(labeled_text, label)
+    def statistics(self, check):
+        """" Filter data as TPs, FPs, FNs and suspiciously hashed info """
 
-        return data_outcome
+        FP = check[check['count_hashed_anon'] > check['count_raw']].reset_index(drop=True)
+        FP['total'] = FP['count_hashed_anon'] - FP['count_raw']
 
-    def true_positives(self, check):
-        """" View the correctly hashed usernames """
+        TP = check[(check['count_hashed_anon'] == check['count_raw']) &
+                        (check['count_anon'] == 0)].reset_index(drop=True)
+        TP = TP.append(FP)
+        TP['total'] = TP['count_raw']
 
-        correct = check[(check['count_hashed_anon'] == check['count_raw']) & (check['count_anon'] == 0)]
-        correct = correct.reset_index(drop=True)
+        FN = check[(check['count_anon'] > 0)].reset_index(drop=True)
+        FN['total'] = FN['count_anon']
 
-        return correct, 'true_positives'
+        other = check[(check['count_hashed_anon'] < check['count_raw']) &
+                      (check['count_anon'] == 0)].reset_index(drop=True)
+        other['total'] = other['count_raw']
 
-    def false_negatives(self, check):
-        """ View the false negatives (the usernames that were missed in the anotation process) """
+        return TP, FN, FP, other
 
-        missed = check[(check['count_anon'] > 0)]
-        missed = missed.reset_index(drop=True)
-
-        return missed, 'false_negatives'
-
-    def false_positives(self, check):
-        """ View the false positives (the words that were hashed when they shouldn't have) """
-
-        toomuch = check[check['count_hashed_anon'] > check['count_raw']]
-        toomuch = toomuch.reset_index(drop=True)
-
-        return toomuch, 'false_positives'
-
-    def suspicious_hashes(self, check):
-        """ View words of which both the original and the hash no longer appear in the anonymized packages"""
-
-        weird = check[(check['count_hashed_anon'] < check['count_raw']) & (
-                    check['count_anon'] == 0)]
-        weird = weird.reset_index(drop=True)
-
-        return weird, 'suspicious_hashes'
-
-    def statistics(self, check, label):
-        """" Save the TP, FP, FN and suspiciously hashed info """
-
-        functions = [self.true_positives(check), self.false_negatives(check), self.false_positives(check), self.suspicious_hashes(check)]
-
-        for function in functions:
-            statistics = function[0]
-            path = Path(self.results_folder.parent, function[1])
-            path.mkdir(parents=True, exist_ok=True)
-            statistics.to_csv(Path(path, f'{function[1]}_{label}.csv'), index=False)
-
-    def accuracy(self, check, label):
+    def validation(self, df_outcome, TP, FN, FP, other):
         """ Create dataframe with statistics to evaluate the efficiency of the anonymization process """
 
-        TP = self.true_positives(check)[0].groupby(['file'])['count_raw'].sum().reset_index(name='TP')
-        FN = self.false_negatives(check)[0].groupby(['file'])['count_raw'].sum().reset_index(name='FN')
-        FP = self.false_positives(check)[0].groupby(['file'])['count_raw'].sum().reset_index(name='FP')
-        tot = check.groupby(['file'])['count_raw'].sum().reset_index(name='total')
+        # Count occurences per label per file
+        validation_outcome = df_outcome.groupby(['label', 'file'])['count_raw'].sum().reset_index(name='total')
+        dataframes = {'TP': TP, 'FN': FN, 'FP': FP, 'other': other}
 
-        df_outcome = reduce(lambda left, right: pd.merge(left, right, how='outer', on='file'), [TP, FN, FP, tot])
+        for type in dataframes.keys():
+            df = dataframes[type]
+            df_grouped = df.groupby(['label', 'file'])['total'].sum().reset_index(name=type)
+            validation_outcome = validation_outcome.merge(df_grouped, how='outer')
 
-        df_outcome['Recall'] = ''
-        df_outcome['Precision'] = ''
-        df_outcome['F1'] = ''
+        validation_outcome = validation_outcome.reindex(columns=validation_outcome.columns.tolist() +
+                                                                ['Recall', 'Precision', 'F1']).set_index('label')
 
-        for i in range(df_outcome.shape[0]):
-            file = df_outcome['file'][i]
+        # Calculate recall, precision and F1 score per label per file
+        final = pd.DataFrame()
+        for label in self.labels:
+            data = validation_outcome.loc[label].reset_index()
 
-            original = list(check['count_raw'][check['file'] == file])
-            anonymized = list(check['count_hashed_anon'][check['file'] == file])
+            for row, file in enumerate(data['file']):
+                original = list(df_outcome['count_raw'][(df_outcome['file'] == file) &
+                                                        (df_outcome['label'] == label)])
+                anonymized = list(df_outcome['count_hashed_anon'][(df_outcome['file'] == file) &
+                                                        (df_outcome['label'] == label)])
 
-            df_outcome.loc[i, 'Recall'] = recall_score(original, anonymized, average='weighted', zero_division=0)
-            df_outcome.loc[i, 'Precision'] = precision_score(original, anonymized, average='weighted', zero_division=0)
-            df_outcome.loc[i, 'F1'] = f1_score(original, anonymized, average='weighted', zero_division=0)
+                if label != 'Username' and label != 'Name':
+                    original = [1] * int(original[-1])
+                    anonymized = [1] * int(anonymized[-1])
+                    if len(original) < len(anonymized):
+                        anonymized[-2] = sum(anonymized[len(original)-1:])
+                        anonymized = anonymized[:-1]
+                    elif len(original) > len(anonymized):
+                        anonymized.extend([0] * (len(original) - len(anonymized)))
 
-        df_outcome.loc[i+1, 'file'] = 'total'
-        df_outcome.loc[i+1, ['TP', 'FN', 'FP', 'total']] = list(df_outcome.sum(numeric_only=True))
-        df_outcome.loc[i+1, ['Recall', 'Precision', 'F1']] = list(df_outcome.mean())[-3:]
-        df_outcome.insert(0, 'label', label)
+                options = {'micro', 'macro', 'samples', 'weighted', 'binary'}
+                output = {}
+                for option in options:
+                    try:
+                        output[option] = {'zero0': recall_score(original, anonymized, average=option, zero_division=0),
+                                        'zero1': recall_score(original, anonymized, average=option, zero_division=1),
+                                        'zerowarn': recall_score(original, anonymized, average=option, zero_division='warn'),
+                                        'sampleweight' : recall_score(original, anonymized, average=option, zero_division=0, sample_weight=original)}
+                    except ValueError:
+                        output[option] = 'Error'
+                recall_options = pd.DataFrame.from_dict(output)
+                recall_options.to_csv(Path('data/temp/statistics/recall_options.csv'), index=True)
 
-        return df_outcome
+                data.loc[row, 'Recall'] = recall_score(original, anonymized, average='weighted', zero_division=0)
+                data.loc[row, 'Precision'] = precision_score(original, anonymized, average='weighted', zero_division=0)
+                data.loc[row, 'F1'] = f1_score(original, anonymized, average='weighted', zero_division=0)
+
+            new_row = [label, 'total'] + list(data.sum(numeric_only=True))[:-3] + (list(data.mean())[-3:])
+            new = pd.DataFrame([new_row], columns=list(data.columns))
+            data = data.append(new, ignore_index=True)
+
+            final = final.append(data)
+
+        final = final.set_index(['label'])
+        self.count_files(final)
+
+        return final
+
+    def count_files(self, final):
+        """ Create frequency table of labeled raw text per file per package """
+
+        files = sorted(final['file'].unique())
+        count_files = pd.DataFrame({'file': files})
+
+        for label in self.labels:
+            new = final.loc[label, ['file', 'total']]
+            count_files = count_files.merge(new.rename(columns={'total': label}), how='outer')
+
+        path = Path(self.results_folder.parent, f'descriptives.csv')
+        count_files.to_csv(path, index=False)
+
+        return count_files
 
 
 def init_logging(log_file: Path):
@@ -400,25 +308,54 @@ def main():
     logger = init_logging(Path(args.log_file))
     logger.info(f"Started validation process:")
 
-    evalanonym = ValidateAnonymization(Path(args.results_folder), Path(args.processed_folder), Path(args.keys_folder))
+    # Load fixed files one time
+    importing = ImportFiles(args.results_folder, args.processed_folder, args.keys_folder)
+    results = importing.load_results()
+    raw_text = importing.load_raw_text()
+    key_files = importing.load_keys()
+    # packages = list(key_files.keys()) # enter what packages you want to check
+    packages = ['snowecho212_20201024']
 
-    labels = ['Username', 'Name', 'Email', 'Phone', 'URL']
-
+    # Count number of labels per file per DDP
     df_outcome = pd.DataFrame()
-    for label in labels:
-        if label == 'Username' or label == 'Name':
-            data_outcome = evalanonym.compare_names(label)
-        else:
-            data_outcome = evalanonym.compare_labels(label)
+    number = 0
+    for package in packages:
+        result = results[results['package'] == package]
+        raw_file = raw_text[raw_text['package'] == package]
+
+        key_file = key_files[package]
+        package_hashed = key_file[package]
+
+        labels = list(result['label'].unique())
+
+        evalanonym = ValidateAnonymization(Path(args.results_folder), Path(args.processed_folder),
+                                           Path(args.keys_folder),
+                                           package, package_hashed, key_file, result, raw_file, labels)
+        number += 1
+        logger.info(f'  Scoring DDP \'{package}\' ({number}/{len(packages)})')
+        data_outcome = evalanonym.execute()
         df_outcome = df_outcome.append(data_outcome)
 
-    path = Path(Path(args.results_folder).parent, 'Validation_Outcome.csv')
-    logger.info(f"     Saving validation outcome to {path}")
-    df_outcome.to_csv(path, index=False)
+    # TP, FP, FN and other per file per DDP
+    path = Path(args.results_folder).parent / 'statistics'
+    path.mkdir(parents=True, exist_ok=True)
 
-    evalanonym.count_files(df_outcome)
+    TP, FN, FP, other = evalanonym.statistics(df_outcome)
+    logger.info(f"     Saving statistics (TP, FP, FN, and other) to {path}")
+
+    TP.to_csv(path / 'TP.csv', index=False)
+    FN.to_csv(path / 'FN.csv', index=False)
+    FP.to_csv(path / 'FP.csv', index=False)
+    other.to_csv(path / 'other.csv', index=False)
+    df_outcome.to_csv(path / 'everything.csv', index=False)
+
+    # Validation outcome per label per file
+    validation_outcome = evalanonym.validation(df_outcome, TP, FN, FP, other)
+    logger.info(f"     Saving outcome of validation process to {path.parent}")
+    validation_outcome.to_csv(path.parent / 'validation_deidentification.csv', index=True)
 
     logger.info(f"Finished! :) ")
+
 
 if __name__ == '__main__':
     main()

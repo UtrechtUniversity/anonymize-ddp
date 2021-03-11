@@ -10,13 +10,14 @@ from import_files import ImportFiles
 class ValidateAnonymization:
     """ Detect and anonymize personal information in Instagram data packages"""
 
-    def __init__(self, results_folder: Path, processed_folder: Path, keys_folder: Path,
+    def __init__(self, input_folder: Path, results_folder: Path, processed_folder: Path, keys_folder: Path,
                  package, package_hashed, key_file, result, raw_file, labels):
 
         self.logger = logging.getLogger('validating')
-        self.results_folder = results_folder
-        self.processed_folder = processed_folder
-        self.keys_folder = keys_folder
+        self.input_folder = Path(input_folder)
+        self.results_folder = Path(results_folder)
+        self.processed_folder = Path(processed_folder)
+        self.keys_folder = Path(keys_folder)
 
         self.package = package
         self.package_hashed = package_hashed
@@ -25,7 +26,7 @@ class ValidateAnonymization:
         self.raw_file = raw_file
         self.labels = labels
 
-        self.regex = r"(?:(?<=\\n)|(?<=[\W]))(?:(?<!instagram.com\/)(?<!stories\/)){}(?=[\W])"
+        self.regex = r"(?:(?<=\\n)|(?<=[\W]))(?:(?<!instagram.com\/)(?<!stories\/)){}(?=[\W])(?![@])"
         self.regex2 = '{}(?=[\W])'
 
     def open_package(self):
@@ -201,9 +202,15 @@ class ValidateAnonymization:
         # Calculate recall, precision and F1 score per label per file
         final = pd.DataFrame()
         for label in self.labels:
-            data = validation_outcome.loc[label].reset_index()
+            if validation_outcome.index.tolist().count(label) == 1:
+                data = pd.DataFrame(validation_outcome.loc[label]).T
+                data = data.reset_index()
+                data = data.rename(columns={'index':'label'})
+            else:
+                data = validation_outcome.loc[label].reset_index()
+            data = data.fillna(0)
 
-            for row, file in enumerate(data['file']):
+            for row, file in enumerate(data['file'].tolist()):
                 original = list(df_outcome['count_raw'][(df_outcome['file'] == file) &
                                                         (df_outcome['label'] == label)])
                 anonymized = list(df_outcome['count_hashed_anon'][(df_outcome['file'] == file) &
@@ -213,23 +220,10 @@ class ValidateAnonymization:
                     original = [1] * int(original[-1])
                     anonymized = [1] * int(anonymized[-1])
                     if len(original) < len(anonymized):
-                        anonymized[-2] = sum(anonymized[len(original)-1:])
-                        anonymized = anonymized[:-1]
+                        anonymized[len(original)-1] = sum(anonymized[len(original)-1:])
+                        anonymized = anonymized[:len(original)]
                     elif len(original) > len(anonymized):
                         anonymized.extend([0] * (len(original) - len(anonymized)))
-
-                options = {'micro', 'macro', 'samples', 'weighted', 'binary'}
-                output = {}
-                for option in options:
-                    try:
-                        output[option] = {'zero0': recall_score(original, anonymized, average=option, zero_division=0),
-                                        'zero1': recall_score(original, anonymized, average=option, zero_division=1),
-                                        'zerowarn': recall_score(original, anonymized, average=option, zero_division='warn'),
-                                        'sampleweight' : recall_score(original, anonymized, average=option, zero_division=0, sample_weight=original)}
-                    except ValueError:
-                        output[option] = 'Error'
-                recall_options = pd.DataFrame.from_dict(output)
-                recall_options.to_csv(Path('data/temp/statistics/recall_options.csv'), index=True)
 
                 data.loc[row, 'Recall'] = recall_score(original, anonymized, average='weighted', zero_division=0)
                 data.loc[row, 'Precision'] = precision_score(original, anonymized, average='weighted', zero_division=0)
@@ -296,6 +290,8 @@ def main():
     parser = argparse.ArgumentParser(description='Validatie anonymization process.')
     parser.add_argument("--results_folder", "-r", help="Enter path to folder where result of Label-Studio can be found",
                         default=".")
+    parser.add_argument("--input_folder", "-i", help="Enter path to folder where the raw data packages can be found",
+                        default=".")
     parser.add_argument("--processed_folder", "-p", help="Enter path to folder where the processed (i.e., de-identified) data packages can be found",
                         default=".")
     parser.add_argument("--keys_folder", "-k", help="Enter path to folder where the key files can be found",
@@ -309,32 +305,33 @@ def main():
     logger.info(f"Started validation process:")
 
     # Load fixed files one time
-    importing = ImportFiles(args.results_folder, args.processed_folder, args.keys_folder)
+    importing = ImportFiles(args.input_folder, args.results_folder, args.processed_folder, args.keys_folder)
     results = importing.load_results()
-    raw_text = importing.load_raw_text()
     key_files = importing.load_keys()
-    # packages = list(key_files.keys()) # enter what packages you want to check
-    packages = ['snowecho212_20201024']
+    packages = list(key_files.keys()) # enter what packages you want to check
+    # packages = ['100billionfaces_20201021']
 
     # Count number of labels per file per DDP
     df_outcome = pd.DataFrame()
-    number = 0
+    number = 1
     for package in packages:
+        logger.info(f'  Scoring DDP \'{package}\' ({number}/{len(packages)})')
+
         result = results[results['package'] == package]
-        raw_file = raw_text[raw_text['package'] == package]
+        raw_file = importing.load_raw_text(package)
 
         key_file = key_files[package]
         package_hashed = key_file[package]
 
         labels = list(result['label'].unique())
 
-        evalanonym = ValidateAnonymization(Path(args.results_folder), Path(args.processed_folder),
-                                           Path(args.keys_folder),
+        evalanonym = ValidateAnonymization(args.input_folder, args.results_folder,
+                                           args.processed_folder, args.keys_folder,
                                            package, package_hashed, key_file, result, raw_file, labels)
-        number += 1
-        logger.info(f'  Scoring DDP \'{package}\' ({number}/{len(packages)})')
+
         data_outcome = evalanonym.execute()
         df_outcome = df_outcome.append(data_outcome)
+        number += 1
 
     # TP, FP, FN and other per file per DDP
     path = Path(args.results_folder).parent / 'statistics'

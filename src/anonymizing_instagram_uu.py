@@ -160,9 +160,9 @@ class AnonymizeInstagram:
             key_dict[person] = key_dict[name]
 
         # Add regex pattern to recognize and replace links to other users profiles
-        key_dict['r#(\(?([+]31|0031|0)-?6(\s?|-)([0-9]\s{0,3}){7,9})(?=[\"\'\.\s,}])'] = '__phonenumber'
-        key_dict['r#https:\S*instagram\w*.com\S*?(?=[\"\'\.\s,}])'] = '__url'
-        key_dict['r#[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+'] = '__emailaddress'
+        key_dict[re.compile('(\d{2,4})(\s*|-)[\d\s]{7,10}(?=[\W])')] = '__phonenumber'
+        key_dict[re.compile('https:\S*instagram\w*.com\S*?(?=[\"\'\.\s,}])')] = '__url'
+        key_dict[re.compile('[a-zA-ZÀ-ÿ0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+')] = '__emailaddress'
 
         # save key file with hashed name of package owner in (newly created) key folder
         sub = key_dict[self.unpacked.name]
@@ -173,9 +173,9 @@ class AnonymizeInstagram:
 
         # write keys to csv file as input for anonymizeUU package
         key_series = pd.Series(key_dict, name='subt')
-        key_series.to_csv(outfile, index_label='id', header=True)
+        key_series.to_csv(outfile, index_label='id', header=True, encoding='utf-8')
 
-        return outfile
+        return key_dict
 
     def preprocess_json(self):
         """ Preprocess all json files in data package"""
@@ -239,10 +239,13 @@ class AnonymizeInstagram:
 
         self.logger.info(f"Pseudonymizing text files in {self.unpacked.name}...")
 
+        def clean(string):
+            return string.replace(r"\n", " ")
+
         if self.cap:
-            anonymize_csv = Anonymize(key_file, use_word_boundaries=True)
+            anonymize_csv = Anonymize(key_file, use_word_boundaries=True, preprocess_text=clean)
         else:
-            anonymize_csv = Anonymize(key_file, use_word_boundaries=True, flags=re.IGNORECASE)
+            anonymize_csv = Anonymize(key_file, use_word_boundaries=True, flags=re.IGNORECASE, preprocess_text=clean)
 
         anonymize_csv.substitute(self.unpacked)
 

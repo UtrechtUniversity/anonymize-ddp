@@ -81,7 +81,7 @@ class ValidateAnonymization:
             else:
                 outcome = self.compare_names(anon_text, labeled_text)
 
-            outcome_df = outcome_df.append(outcome)
+            outcome_df = outcome_df.append(outcome, ignore_index=True)
 
         return outcome_df
 
@@ -167,29 +167,29 @@ class ValidateAnonymization:
     def statistics(self, check):
         """" Filter data as TPs, FPs, FNs and suspiciously hashed info """
 
-        FP = check[check['count_hashed_anon'] > check['count_raw']].reset_index(drop=True)
+        TP_index = check[(check['count_anon'] == 0) & (check['count_hashed_anon'] <= check['count_raw'])].index.to_list()
+        FN_index = check[(check['count_anon'] > 0) & (check['count_raw'] == check['count_anon'])].index.to_list()
+        other = check.loc[~check.index.isin(FN_index + TP_index)].reset_index(drop=True)
+
+        TP = check.loc[TP_index]
+        FN = check.loc[FN_index]
+
+        FP = other[other['count_hashed_anon'] > other['count_raw']].reset_index(drop=True)
+        TP = TP.append(FP, ignore_index=True)
+        FN = FN.append(other[other['count_hashed_anon'] < other['count_raw']], ignore_index=True)
+
         FP['total'] = FP['count_hashed_anon'] - FP['count_raw']
+        TP['total'] = TP['count_raw'] - TP['count_anon']
+        FN['total'] = FN['count_raw'] - FN['count_hashed_anon']
 
-        TP = check[(check['count_hashed_anon'] == check['count_raw']) &
-                        (check['count_anon'] == 0)].reset_index(drop=True)
-        TP = TP.append(FP)
-        TP['total'] = TP['count_raw']
+        return TP, FN, FP
 
-        FN = check[(check['count_anon'] > 0)].reset_index(drop=True)
-        FN['total'] = FN['count_anon']
-
-        other = check[(check['count_hashed_anon'] < check['count_raw']) &
-                      (check['count_anon'] == 0)].reset_index(drop=True)
-        other['total'] = other['count_raw']
-
-        return TP, FN, FP, other
-
-    def validation(self, df_outcome, TP, FN, FP, other):
+    def validation(self, df_outcome, TP, FN, FP):
         """ Create dataframe with statistics to evaluate the efficiency of the anonymization process """
 
         # Count occurences per label per file
         validation_outcome = df_outcome.groupby(['label', 'file'])['count_raw'].sum().reset_index(name='total')
-        dataframes = {'TP': TP, 'FN': FN, 'FP': FP, 'other': other}
+        dataframes = {'TP': TP, 'FN': FN, 'FP': FP}
 
         for type in dataframes.keys():
             df = dataframes[type]
@@ -205,7 +205,7 @@ class ValidateAnonymization:
             if validation_outcome.index.tolist().count(label) == 1:
                 data = pd.DataFrame(validation_outcome.loc[label]).T
                 data = data.reset_index()
-                data = data.rename(columns={'index':'label'})
+                data = data.rename(columns={'index': 'label'})
             else:
                 data = validation_outcome.loc[label].reset_index()
             data = data.fillna(0)
@@ -233,7 +233,7 @@ class ValidateAnonymization:
             new = pd.DataFrame([new_row], columns=list(data.columns))
             data = data.append(new, ignore_index=True)
 
-            final = final.append(data)
+            final = final.append(data, ignore_index=True)
 
         final = final.set_index(['label'])
         self.count_files(final)
@@ -309,7 +309,7 @@ def main():
     results = importing.load_results()
     key_files = importing.load_keys()
     packages = list(key_files.keys()) # enter what packages you want to check
-    # packages = ['100billionfaces_20201021']
+    # packages = ['katsaremeow_20201020']
 
     # Count number of labels per file per DDP
     df_outcome = pd.DataFrame()
@@ -330,24 +330,23 @@ def main():
                                            package, package_hashed, key_file, result, raw_file, labels)
 
         data_outcome = evalanonym.execute()
-        df_outcome = df_outcome.append(data_outcome)
+        df_outcome = df_outcome.append(data_outcome, ignore_index=True)
         number += 1
 
-    # TP, FP, FN and other per file per DDP
+    # TP, FP, FN per file per DDP
     path = Path(args.results_folder).parent / 'statistics'
     path.mkdir(parents=True, exist_ok=True)
 
-    TP, FN, FP, other = evalanonym.statistics(df_outcome)
-    logger.info(f"     Saving statistics (TP, FP, FN, and other) to {path}")
+    TP, FN, FP = evalanonym.statistics(df_outcome)
+    logger.info(f"     Saving statistics (TP, FP, FN) to {path}")
 
     TP.to_csv(path / 'TP.csv', index=False)
     FN.to_csv(path / 'FN.csv', index=False)
     FP.to_csv(path / 'FP.csv', index=False)
-    other.to_csv(path / 'other.csv', index=False)
     df_outcome.to_csv(path / 'everything.csv', index=False)
 
     # Validation outcome per label per file
-    validation_outcome = evalanonym.validation(df_outcome, TP, FN, FP, other)
+    validation_outcome = evalanonym.validation(df_outcome, TP, FN, FP)
     logger.info(f"     Saving outcome of validation process to {path.parent}")
     validation_outcome.to_csv(path.parent / 'validation_deidentification.csv', index=True)
 

@@ -119,5 +119,6 @@ def main():
     parser.add_argument("--log_file", "-l", help="Enter path to log file",
                         default="log_importing_files.txt")
 
+
 if __name__ == '__main__':
     main()

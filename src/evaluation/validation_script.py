@@ -110,7 +110,7 @@ class ValidateAnonymization:
             labeled_text.loc[row, 'count_raw'] = len(occ_raw)
 
             anonymized = anon_text['text'][anon_text['file'] == file].reset_index(drop=True)[0]
-            occ_text = re.findall(self.regex2.format(text.lower()), str(anonymized).lower())
+            occ_text = re.findall(self.regex.format(text.lower()), str(anonymized).lower())
             labeled_text.loc[row, 'count_anon'] = len(occ_text)
 
             occ_subt = re.findall(self.regex2.format(subt), str(anonymized))
@@ -133,7 +133,6 @@ class ValidateAnonymization:
         # Count labeled_text and hashed_text occurances in raw and de-identified DDPs
         for row, file in enumerate(labeled_text['file']):
             text = list(labeled_text_long['labeled_text'][labeled_text_long['file'] == file])
-            # labeled_text.loc[row, 'labeled_text'] = [text]
 
             raw = self.raw_file['raw_text'][(self.raw_file['file'] == file)].reset_index(drop=True)[0]
             anonymized = anon_text['text'][anon_text['file'] == file].reset_index(drop=True)[0]
@@ -142,18 +141,17 @@ class ValidateAnonymization:
             for item in text:
                 url = 'https:\S*instagram\w*.com\S*'
                 if re.match(url, str(item)):
-                    # pattern = url + '(?=[\"\'\.\s,}])'
                     pattern = self.regex2.format(url)
-                    occ_raw = len(re.findall(pattern, str(raw[0])))
-                    occ_text = len(re.findall(pattern, str(anonymized[0])))
+                    occ_raw = len(re.findall(pattern, raw))
+                    occ_text = len(re.findall(pattern, str(anonymized)))
                 else:
                     try:
                         pattern = self.regex2.format(item)
                         res_raw = re.findall(pattern, raw)
-                        res_anon = re.findall(pattern, str(anonymized[0]))
+                        res_anon = re.findall(pattern, str(anonymized))
                     except re.error:
-                        res_raw = re.findall(self.regex2.format(item.split('+')[1]), str(raw[0]))
-                        res_anon = re.findall(self.regex2.format(item.split('+')[1]), str(anonymized[0]))
+                        res_raw = re.findall(self.regex2.format(item.split('+')[1]), raw)
+                        res_anon = re.findall(self.regex2.format(item.split('+')[1]), str(anonymized))
 
                     occ_raw = occ_raw + len(res_raw)
                     occ_text = occ_text + len(res_anon)
@@ -161,36 +159,68 @@ class ValidateAnonymization:
             labeled_text.loc[row, 'count_raw'] = occ_raw
             labeled_text.loc[row, 'count_anon'] = occ_text
 
-            occ_subt = re.findall(self.regex2.format(subt), str(anonymized[0]))
+            occ_subt = re.findall(self.regex2.format(subt), str(anonymized))
             labeled_text.loc[row, 'count_hashed_anon'] = len(occ_subt)
 
         return labeled_text
 
+    def package_merge(self, df_outcome):
+
+        count_hash = df_outcome.groupby(['file', 'package', 'text_hashed'])['text_hashed'].count().reset_index(name='total')
+        count_hash_recur = count_hash[(count_hash['total'] > 1) &
+                                      (count_hash['text_hashed'].str.startswith('__proefpersoon', na=False))].reset_index(drop=True)
+
+        pii_index = []
+        for i in count_hash_recur.index:
+            file = count_hash_recur.loc[i, 'file']
+            package = count_hash_recur.loc[i, 'package']
+            text_hashed = count_hash_recur.loc[i, 'text_hashed']
+            pii_index.extend(df_outcome[(df_outcome['file'] == file) & (df_outcome['package'] == package)
+                              & (df_outcome['text_hashed'] == text_hashed)].index)
+
+        pii_package_df = df_outcome.loc[pii_index].reset_index(drop=True)
+        check = df_outcome.loc[~df_outcome.index.isin(pii_index)].reset_index(drop=True)
+
+        pii_package = pii_package_df.groupby(['package', 'file', 'text_hashed', 'package_hashed']).sum().reset_index()
+        pii_package['count_hashed_anon'] = pii_package['count_hashed_anon'] / 2
+
+        check = check.append(pii_package, ignore_index=True)
+        dppid = check[(check['text_hashed'].str.startswith('__proefpersoon', na=False))].index
+        check.loc[dppid, 'label'] = 'DDP_id'
+
+        return check
+
     def statistics(self, check):
         """" Filter data as TPs, FPs, FNs and suspiciously hashed info """
 
-        TP_index = check[(check['count_anon'] == 0) & (check['count_hashed_anon'] <= check['count_raw'])].index.to_list()
-        FN_index = check[(check['count_anon'] > 0) & (check['count_raw'] == check['count_anon'])].index.to_list()
-        other = check.loc[~check.index.isin(FN_index + TP_index)].reset_index(drop=True)
+        check['total'] = check['count_hashed_anon'] - check['count_raw']
+        FN = check[check['total'] < 0].drop('total', 1)
+        FP = check[check['total'] > 0].drop('total', 1)
+        TP = check[(check['total'] == 0) & (check['count_anon'] == 0)].drop('total', 1)
+        other = check.loc[~check.index.isin(list(FN.index) + list(FP.index) + list(TP.index))].reset_index(drop=True)
 
-        TP = check.loc[TP_index]
-        FN = check.loc[FN_index]
+        TP = TP.append(FN[FN['count_anon'] == 0], ignore_index=True)
+        TP = TP.append(FP[FP['count_raw'] > FP['count_anon']], ignore_index=True)
+        FN = FN.append(FP[FP['count_anon'] > 0], ignore_index=True)
 
-        FP = other[other['count_hashed_anon'] > other['count_raw']].reset_index(drop=True)
-        TP = TP.append(FP, ignore_index=True)
-        FN = FN.append(other[other['count_hashed_anon'] < other['count_raw']], ignore_index=True)
-
-        FP['total'] = FP['count_hashed_anon'] - FP['count_raw']
+        FN['total'] = FN['count_anon']
+        FP['total'] = FP['count_hashed_anon'] - FP['count_raw'] - FP['count_anon']
         TP['total'] = TP['count_raw'] - TP['count_anon']
-        FN['total'] = FN['count_raw'] - FN['count_hashed_anon']
+        other['total'] = other['count_raw']
+
+        FN = FN.reset_index(drop=True)
+        FP = FP.reset_index(drop=True)
+        TP = TP.reset_index(drop=True)
+
+        check = check.drop('total', 1)
 
         return TP, FN, FP
 
-    def validation(self, df_outcome, TP, FN, FP):
+    def validation(self, check, TP, FN, FP):
         """ Create dataframe with statistics to evaluate the efficiency of the anonymization process """
 
         # Count occurences per label per file
-        validation_outcome = df_outcome.groupby(['label', 'file'])['count_raw'].sum().reset_index(name='total')
+        validation_outcome = check.groupby(['label', 'file'])['count_raw'].sum().reset_index(name='total')
         dataframes = {'TP': TP, 'FN': FN, 'FP': FP}
 
         for type in dataframes.keys():
@@ -203,7 +233,7 @@ class ValidateAnonymization:
 
         # Calculate recall, precision and F1 score per label per file
         final = pd.DataFrame()
-        for label in self.labels:
+        for label in ['DDP_id'] + self.labels:
             if validation_outcome.index.tolist().count(label) == 1:
                 data = pd.DataFrame(validation_outcome.loc[label]).T
                 data = data.reset_index()
@@ -213,25 +243,11 @@ class ValidateAnonymization:
             data = data.fillna(0)
 
             for row, file in enumerate(data['file'].tolist()):
-                original = list(df_outcome['count_raw'][(df_outcome['file'] == file) &
-                                                        (df_outcome['label'] == label)])
-                anonymized = list(df_outcome['count_hashed_anon'][(df_outcome['file'] == file) &
-                                                        (df_outcome['label'] == label)])
+                data.loc[row, 'Recall'] = self.scikit_input(check, label, file)[0]
+                data.loc[row, 'Precision'] = self.scikit_input(check, label, file)[1]
+                data.loc[row, 'F1'] = self.scikit_input(check, label, file)[2]
 
-                if label != 'Username' and label != 'Name':
-                    original = [1] * int(original[-1])
-                    anonymized = [1] * int(anonymized[-1])
-                    if len(original) < len(anonymized):
-                        anonymized[len(original)-1] = sum(anonymized[len(original)-1:])
-                        anonymized = anonymized[:len(original)]
-                    elif len(original) > len(anonymized):
-                        anonymized.extend([0] * (len(original) - len(anonymized)))
-
-                data.loc[row, 'Recall'] = recall_score(original, anonymized, average='weighted', zero_division=0)
-                data.loc[row, 'Precision'] = precision_score(original, anonymized, average='weighted', zero_division=0)
-                data.loc[row, 'F1'] = f1_score(original, anonymized, average='weighted', zero_division=0)
-
-            new_row = [label, 'total'] + list(data.sum(numeric_only=True))[:-3] + (list(data.mean())[-3:])
+            new_row = [label, 'total'] + list(data.sum(numeric_only=True))[:-3] + self.scikit_input(check, label)
             new = pd.DataFrame([new_row], columns=list(data.columns))
             data = data.append(new, ignore_index=True)
 
@@ -241,6 +257,32 @@ class ValidateAnonymization:
         self.count_files(final)
 
         return final
+
+    def scikit_input(self, check, label, file=None):
+        if file is None:
+            original = list(check['count_raw'][check['label'] == label])
+            anonymized = list(check['count_hashed_anon'][check['label'] == label])
+
+        else:
+            original = list(check['count_raw'][(check['file'] == file) &
+                                               (check['label'] == label)])
+            anonymized = list(check['count_hashed_anon'][(check['file'] == file) &
+                                                         (check['label'] == label)])
+
+            if len(original) == 0 and (label != 'Username' and label != 'Name'):
+                original = [1] * int(original[-1])
+                anonymized = [1] * int(anonymized[-1])
+                if len(original) < len(anonymized):
+                    anonymized[len(original) - 1] = sum(anonymized[len(original) - 1:])
+                    anonymized = anonymized[:len(original)]
+                elif len(original) > len(anonymized):
+                    anonymized.extend([0] * (len(original) - len(anonymized)))
+
+        recall = recall_score(original, anonymized, average='weighted', zero_division=0, sample_weight=original)
+        precision = precision_score(original, anonymized, average='weighted', zero_division=0, sample_weight=original)
+        f1 = f1_score(original, anonymized, average='weighted', zero_division=0, sample_weight=original)
+
+        return [recall, precision, f1]
 
     def count_files(self, final):
         """ Create frequency table of labeled raw text per file per package """
@@ -338,16 +380,17 @@ def main():
     path = Path(args.results_folder).parent / 'statistics'
     path.mkdir(parents=True, exist_ok=True)
 
-    TP, FN, FP = evalanonym.statistics(df_outcome)
+    check = evalanonym.package_merge(df_outcome)
+    TP, FN, FP = evalanonym.statistics(check)
     logger.info(f"     Saving statistics (TP, FP, FN) to {path}")
 
     TP.to_csv(path / 'TP.csv', index=False)
     FN.to_csv(path / 'FN.csv', index=False)
     FP.to_csv(path / 'FP.csv', index=False)
-    df_outcome.to_csv(path / 'everything.csv', index=False)
+    check.to_csv(path / 'everything.csv', index=False)
 
     # Validation outcome per label per file
-    validation_outcome = evalanonym.validation(df_outcome, TP, FN, FP)
+    validation_outcome = evalanonym.validation(check, TP, FN, FP)
     logger.info(f"     Saving outcome of validation process to {path.parent}")
     validation_outcome.to_csv(path.parent / 'validation_deidentification.csv', index=True)
 

@@ -105,15 +105,15 @@ class ValidateAnonymization:
                 subt = '__NOHASH__'
             labeled_text.loc[row, 'text_hashed'] = subt
 
-            raw = self.raw_file['text'][self.raw_file['file'] == file].reset_index(drop=True)
-            occ_raw = re.findall(self.regex.format(text.lower()), str(raw[0]).lower())
+            raw = self.raw_file['raw_text'][self.raw_file['file'] == file].reset_index(drop=True)[0]
+            occ_raw = re.findall(self.regex.format(text.lower()), raw.lower())
             labeled_text.loc[row, 'count_raw'] = len(occ_raw)
 
-            anonymized = anon_text['text'][anon_text['file'] == file].reset_index(drop=True)
-            occ_text = re.findall(self.regex2.format(text.lower()), str(anonymized[0]).lower())
+            anonymized = anon_text['text'][anon_text['file'] == file].reset_index(drop=True)[0]
+            occ_text = re.findall(self.regex2.format(text.lower()), str(anonymized).lower())
             labeled_text.loc[row, 'count_anon'] = len(occ_text)
 
-            occ_subt = re.findall(self.regex2.format(subt), str(anonymized[0]))
+            occ_subt = re.findall(self.regex2.format(subt), str(anonymized))
             labeled_text.loc[row, 'count_hashed_anon'] = len(occ_subt)
 
         return labeled_text
@@ -133,21 +133,23 @@ class ValidateAnonymization:
         # Count labeled_text and hashed_text occurances in raw and de-identified DDPs
         for row, file in enumerate(labeled_text['file']):
             text = list(labeled_text_long['labeled_text'][labeled_text_long['file'] == file])
+            # labeled_text.loc[row, 'labeled_text'] = [text]
 
-            raw = self.raw_file['text'][(self.raw_file['file'] == file)].reset_index(drop=True)
-            anonymized = anon_text['text'][anon_text['file'] == file].reset_index(drop=True)
+            raw = self.raw_file['raw_text'][(self.raw_file['file'] == file)].reset_index(drop=True)[0]
+            anonymized = anon_text['text'][anon_text['file'] == file].reset_index(drop=True)[0]
 
             occ_raw = occ_text = 0
             for item in text:
                 url = 'https:\S*instagram\w*.com\S*'
                 if re.match(url, str(item)):
-                    pattern = url + '(?=[\"\'\.\s,}])'
+                    # pattern = url + '(?=[\"\'\.\s,}])'
+                    pattern = self.regex2.format(url)
                     occ_raw = len(re.findall(pattern, str(raw[0])))
                     occ_text = len(re.findall(pattern, str(anonymized[0])))
                 else:
                     try:
                         pattern = self.regex2.format(item)
-                        res_raw = re.findall(pattern, str(raw[0]))
+                        res_raw = re.findall(pattern, raw)
                         res_anon = re.findall(pattern, str(anonymized[0]))
                     except re.error:
                         res_raw = re.findall(self.regex2.format(item.split('+')[1]), str(raw[0]))
@@ -306,7 +308,7 @@ def main():
 
     # Load fixed files one time
     importing = ImportFiles(args.input_folder, args.results_folder, args.processed_folder, args.keys_folder)
-    results = importing.load_results()
+
     key_files = importing.load_keys()
     packages = list(key_files.keys()) # enter what packages you want to check
     # packages = ['katsaremeow_20201020']
@@ -317,8 +319,7 @@ def main():
     for package in packages:
         logger.info(f'  Scoring DDP \'{package}\' ({number}/{len(packages)})')
 
-        result = results[results['package'] == package]
-        raw_file = importing.load_raw_text(package)
+        raw_file, result = importing.load_results(package)
 
         key_file = key_files[package]
         package_hashed = key_file[package]

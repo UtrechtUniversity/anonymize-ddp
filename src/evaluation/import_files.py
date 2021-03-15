@@ -37,7 +37,7 @@ class ImportFiles:
 
         return all_keys
 
-    def load_results(self):
+    def load_results(self, package):
         """ Load Label-Studio results (labeled raw data packages) into dataframe """
 
         # Load results (json format) of label-studio
@@ -46,26 +46,23 @@ class ImportFiles:
 
         # Create dataframe with most important results: labeled text, type of label, file and package
         labeled_df = pd.DataFrame()
+        raw_text = pd.DataFrame()
         for an in range(len(label_results)):
-            file = label_results[an]['data']['file'] + '.json'
-            package = label_results[an]['data']['package']
-            for i in label_results[an]['completions']:
-                for j in i['result']:
-                    if len(j['value']['text']) > 2:
-                        inputs = {'labeled_text': [j['value']['text'].strip()], 'label': [j['value']['labels'][0]],
-                                  'file': [file], 'package': [package]}
-                        inputs = pd.DataFrame(inputs)
-                        labeled_df = labeled_df.append(inputs, ignore_index=True)
+            if label_results[an]['data']['package'] == package:
+                file = label_results[an]['data']['file'] + '.json'
+                text = label_results[an]['data']['text']
+                raw = {'file': file, 'package': package, 'raw_text': text}
+                raw_text = raw_text.append(raw, ignore_index=True)
 
-        return labeled_df
+                for i in label_results[an]['completions']:
+                    for j in i['result']:
+                        if len(j['value']['text']) > 2:
+                            inputs = {'labeled_text': [j['value']['text'].strip()], 'label': [j['value']['labels'][0]],
+                                      'file': [file], 'package': [package]}
+                            inputs = pd.DataFrame(inputs)
+                            labeled_df = labeled_df.append(inputs, ignore_index=True)
 
-    def load_raw_text(self, package):
-        """ Load the raw file used in Label-Studio for labeling """
-
-        self.unzipping(package)
-        raw_text = self.merge()
-
-        return raw_text
+        return raw_text, labeled_df
 
     def unzipping(self, package):
         """ Unzip data packages """
@@ -73,14 +70,15 @@ class ImportFiles:
         output = self.results_folder.parent / 'temporary'
         output.mkdir(parents=True, exist_ok=True)
 
-        unpack = list(self.input_folder.glob(f'*{package}.zip'))[0]
+        packages = list(self.input_folder.glob('*.zip'))
 
-        with ZipFile(unpack, 'r') as zipObj:
-            self.logger.info(f' Unzipping {package}...')
-            zipObj.extractall(output / package)
+        for package in packages:
+            with ZipFile(package, 'r') as zipObj:
+                self.logger.info(f' Unzipping {package}...')
+                zipObj.extractall(output / package)
 
     def merge(self):
-        """ Merge all unpacked files togher in one dataframe """
+        """ Merge all unpacked files in one file (which forms the input for Label-Studio """
 
         output = self.results_folder.parent / 'temporary'
         text = pd.DataFrame()
@@ -99,9 +97,9 @@ class ImportFiles:
                         df = pd.DataFrame(input_data)
                         text = text.append(df, ignore_index=True)
 
-        # text_file = self.results_folder / 'text_packages.csv'
-        # text.to_csv(text_file, index=False)
-        # self.logger.info(f'Saving merged file: {text_file}')
+        text_file = self.results_folder / 'text_packages.csv'
+        text.to_csv(text_file, index=False)
+        self.logger.info(f'Saving merged file: {text_file}')
 
         shutil.rmtree(output)
 

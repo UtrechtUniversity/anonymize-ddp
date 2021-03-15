@@ -1,4 +1,4 @@
-anonymoUUs==0.0.7
+anonymoUUs==0.0.8
 facenet-pytorch==2.2.9
 numpy==1.17.3
 opencv-python==4.2.0.34

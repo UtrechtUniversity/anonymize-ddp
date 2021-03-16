@@ -64,6 +64,25 @@ class ImportFiles:
 
         return raw_text, labeled_df
 
+    def open_package(self, package, package_hashed):
+        """ Load and merge de-identified data packages into a dataframe"""
+
+        anon_text = pd.DataFrame()
+        folder = self.processed_folder / package_hashed
+
+        files = list(folder.glob('*.json'))
+        for file in files:
+            try:
+                with open(file, 'r', encoding='utf8') as f2:
+                    data = f2.read()
+                    input_data = {'text': [data], 'file': [file.name], 'package': [package]}
+                    df = pd.DataFrame(input_data)
+                    anon_text = anon_text.append(df, ignore_index=True)
+            except:
+                self.logger.warning(f'      {file} of package {package} is not added')
+
+        return anon_text
+
     def unzipping(self, package):
         """ Unzip data packages """
 

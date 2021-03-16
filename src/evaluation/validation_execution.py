@@ -9,8 +9,7 @@ from validation_packagebased import ValidateAnonymizationDDP
 class ValidateAnonymization:
     """ Detect and anonymize personal information in Instagram data packages"""
 
-    def __init__(self, input_folder: Path, results_folder: Path, processed_folder: Path, keys_folder: Path,
-                 labels):
+    def __init__(self, input_folder: Path, results_folder: Path, processed_folder: Path, keys_folder: Path):
 
         self.logger = logging.getLogger('validating')
         self.input_folder = Path(input_folder)
@@ -18,23 +17,23 @@ class ValidateAnonymization:
         self.processed_folder = Path(processed_folder)
         self.keys_folder = Path(keys_folder)
 
-        self.labels = labels
-
-    def statistics(self, check):
+    def statistics(self, df_merged_ddps):
         """" Filter data as TPs, FPs, FNs and suspiciously hashed info """
 
-        check['total'] = check['count_hashed_anon'] - check['count_raw']
-        FN = check[check['total'] < 0].drop('total', 1)
-        FP = check[check['total'] > 0].drop('total', 1)
-        TP = check[(check['total'] == 0) & (check['count_anon'] == 0)].drop('total', 1)
-        other = check.loc[~check.index.isin(list(FN.index) + list(FP.index) + list(TP.index))].reset_index(drop=True)
+        df_merged_ddps['total'] = df_merged_ddps['count_hashed_anon'] - df_merged_ddps['count_raw']
+        FN = df_merged_ddps[(df_merged_ddps['total'] < 0) & (df_merged_ddps['count_anon'] > 0)].drop('total', 1)
+        FP = df_merged_ddps[df_merged_ddps['total'] > 0].drop('total', 1)
+        TP = df_merged_ddps[(df_merged_ddps['total'] == 0) & (df_merged_ddps['count_anon'] == 0)].drop('total', 1)
+        other = df_merged_ddps.loc[~df_merged_ddps.index.isin(list(FN.index) + list(FP.index) +
+                                                              list(TP.index))].reset_index(drop=True)
 
-        TP = TP.append(FN[FN['count_anon'] == 0], ignore_index=True)
+        TP = TP.append(FN[FN['count_anon'] != FN['count_raw']], ignore_index=True)
+        TP = TP.append(other[other['count_anon'] == 0], ignore_index=True)
         TP = TP.append(FP[FP['count_raw'] > FP['count_anon']], ignore_index=True)
         FN = FN.append(FP[FP['count_anon'] > 0], ignore_index=True)
 
         FN['total'] = FN['count_anon']
-        FP['total'] = FP['count_hashed_anon'] - FP['count_raw'] - FP['count_anon']
+        FP['total'] = FP['count_hashed_anon'] - (FP['count_raw'] - FP['count_anon'])
         TP['total'] = TP['count_raw'] - TP['count_anon']
         other['total'] = other['count_raw']
 
@@ -44,11 +43,11 @@ class ValidateAnonymization:
 
         return TP, FN, FP
 
-    def validation(self, check, TP, FN, FP):
+    def validation(self, df_merged_ddps, TP, FN, FP):
         """ Create dataframe with statistics to evaluate the efficiency of the anonymization process """
 
         # Count occurrences per label per file
-        validation_outcome = check.groupby(['label', 'file'])['count_raw'].sum().reset_index(name='total')
+        validation_outcome = df_merged_ddps.groupby(['label', 'file'])['count_raw'].sum().reset_index(name='total')
         dataframes = {'TP': TP, 'FN': FN, 'FP': FP}
 
         for type in dataframes.keys():
@@ -61,7 +60,7 @@ class ValidateAnonymization:
 
         # Calculate recall, precision and F1 score per label per file
         final = pd.DataFrame()
-        for label in ['DDP_id'] + self.labels:
+        for label in validation_outcome.index.unique():
             try:
                 if validation_outcome.index.tolist().count(label) == 1:
                     data = pd.DataFrame(validation_outcome.loc[label]).T
@@ -72,15 +71,14 @@ class ValidateAnonymization:
                 data = data.fillna(0)
 
                 for row, file in enumerate(data['file'].tolist()):
-                    data.loc[row, 'Recall'] = self.scikit_input(check, label, file)[0]
-                    data.loc[row, 'Precision'] = self.scikit_input(check, label, file)[1]
-                    data.loc[row, 'F1'] = self.scikit_input(check, label, file)[2]
+                    data.loc[row, ['Recall', 'Precision', 'F1']] = self.validation_scores(df_merged_ddps, label, file)
 
-                new_row = [label, 'total'] + list(data.sum(numeric_only=True))[:-3] + self.scikit_input(check, label)
+                new_row = [label, 'total'] + list(data.sum(
+                                             numeric_only=True))[:-3] + self.validation_scores(df_merged_ddps, label)
                 new = pd.DataFrame([new_row], columns=list(data.columns))
                 data = data.append(new, ignore_index=True)
-
                 final = final.append(data, ignore_index=True)
+
             except ValueError:
                 next
 
@@ -89,31 +87,66 @@ class ValidateAnonymization:
 
         return final
 
-    def scikit_input(self, check, label, file=None):
+    def validation_scores(self, df_merged_ddps, label, file=None):
         """ Calculate recall, precision, F1-score """
 
         if file is None:
-            original = list(check['count_raw'][check['label'] == label])
-            anonymized = list(check['count_hashed_anon'][check['label'] == label])
-
+            original = list(df_merged_ddps['count_raw'][df_merged_ddps['label'] == label])
+            anonymized, missed = self.count_anonymized(df_merged_ddps, label)
         else:
-            original = list(check['count_raw'][(check['file'] == file) &
-                                               (check['label'] == label)])
-            anonymized = list(check['count_hashed_anon'][(check['file'] == file) &
-                                                         (check['label'] == label)])
+            original = list(df_merged_ddps['count_raw'][(df_merged_ddps['file'] == file) &
+                            (df_merged_ddps['label'] == label)])
+            anonymized, missed = self.count_anonymized(df_merged_ddps, label, file)
 
-            if len(original) == 0 and (label != 'Username' and label != 'Name'):
-                original = [1] * int(original[-1])
-                anonymized = [1] * int(anonymized[-1])
-                if len(original) < len(anonymized):
-                    anonymized[len(original) - 1] = sum(anonymized[len(original) - 1:])
-                    anonymized = anonymized[:len(original)]
-                elif len(original) > len(anonymized):
-                    anonymized.extend([0] * (len(original) - len(anonymized)))
+        recall, precision, f1 = self.calc_sores(label, original, anonymized, missed)
 
-        recall = recall_score(original, anonymized, average='weighted', zero_division=0, sample_weight=original)
-        precision = precision_score(original, anonymized, average='weighted', zero_division=0, sample_weight=original)
-        f1 = f1_score(original, anonymized, average='weighted', zero_division=0, sample_weight=original)
+        return [recall, precision, f1]
+
+    def count_anonymized(self, df_merged_ddps, label, file=None):
+        """ Extract the number of correctly(!) hashed items """
+
+        if file is None:
+            df_merged = df_merged_ddps[df_merged_ddps['label'] == label].reset_index(drop=True)
+        else:
+            df_merged = df_merged_ddps[(df_merged_ddps['file'] == file) &
+                                       (df_merged_ddps['label'] == label)].reset_index(drop=True)
+
+        df_merged['total_missed'] = 0
+        for i in range(len(df_merged)):
+            if (df_merged.loc[i, 'count_anon'] == 0) and (df_merged.loc[i, 'count_raw'] >= df_merged.loc[i, 'count_hashed_anon']):
+                df_merged.loc[i, 'total_hashed'] = df_merged.loc[i, 'count_raw']
+            elif (df_merged.loc[i, 'count_anon'] == 0) and (df_merged.loc[i, 'count_raw'] < df_merged.loc[i, 'count_hashed_anon']):
+                df_merged.loc[i, 'total_hashed'] = df_merged.loc[i, 'count_hashed_anon']
+            elif df_merged.loc[i, 'count_anon'] > 0:
+                df_merged.loc[i, 'total_hashed'] = df_merged.loc[i, 'count_hashed_anon']
+                df_merged.loc[i, 'total_missed'] = df_merged.loc[i, 'count_anon']
+
+        anonymized = df_merged['total_hashed'].to_list()
+        missed = df_merged['total_missed'].to_list()
+
+        return anonymized, missed
+
+    def calc_sores(self, label, original, anonymized, missed):
+        """ Split summed count (__url, __phonenumber, __emailaddress, DDP_id) in list """
+
+        if label != 'Username' and label != 'Name':
+            original = [1] * int(sum(original) - sum(missed))
+            anonymized = [1] * int(sum(anonymized))
+            if len(original) < len(anonymized):
+                original.extend([0] * (len(anonymized) - len(original)))
+            elif len(original) > len(anonymized):
+                anonymized.extend([0] * (len(original) - len(anonymized)))
+
+            original = original + [1] * int(sum(missed))
+            anonymized = anonymized + [0] * int(sum(missed))
+
+            recall = recall_score(original, anonymized, average='binary', zero_division=0)
+            precision = precision_score(original, anonymized, average='binary', zero_division=0)
+            f1 = f1_score(original, anonymized, average='binary', zero_division=0)
+        else:
+            recall = recall_score(original, anonymized, average='weighted', zero_division=0, sample_weight=original)
+            precision = precision_score(original, anonymized, average='weighted', zero_division=0, sample_weight=original)
+            f1 = f1_score(original, anonymized, average='weighted', zero_division=0, sample_weight=original)
 
         return [recall, precision, f1]
 
@@ -123,7 +156,7 @@ class ValidateAnonymization:
         files = sorted(final['file'].unique())
         count_files = pd.DataFrame({'file': files})
 
-        for label in self.labels:
+        for label in final.index.unique():
             new = final.loc[label, ['file', 'total']]
             count_files = count_files.merge(new.rename(columns={'total': label}), how='outer')
 
@@ -165,11 +198,11 @@ def init_logging(log_file: Path):
 
 def main():
     parser = argparse.ArgumentParser(description='Validatie anonymization process.')
-    parser.add_argument("--results_folder", "-r", help="Enter path to folder where result of Label-Studio can be found",
+    parser.add_argument("--results_folder", "-r", help="Enter path to Label-Studio output",
                         default=".")
-    parser.add_argument("--input_folder", "-i", help="Enter path to folder where the raw data packages can be found",
+    parser.add_argument("--input_folder", "-i", help="Enter path to raw DDPs",
                         default=".")
-    parser.add_argument("--processed_folder", "-p", help="Enter path to folder where the processed (i.e., de-identified) data packages can be found",
+    parser.add_argument("--processed_folder", "-p", help="Enter path to de-identified DDPs",
                         default=".")
     parser.add_argument("--keys_folder", "-k", help="Enter path to folder where the key files can be found",
                         default=".")
@@ -184,26 +217,24 @@ def main():
     # Count labels per DDP and merge final results
     validatingddp = ValidateAnonymizationDDP(args.input_folder, args.results_folder,
                                              args.processed_folder, args.keys_folder)
-    df_outcome, labels = validatingddp.merge_packages()
+    df_merged_ddps = validatingddp.merge_packages()
+    path = Path(args.results_folder).parent / 'statistics'
+    path.mkdir(parents=True, exist_ok=True)
+    df_merged_ddps.to_csv(path / 'everything.csv', index=False)
 
     # Calculate TP, FP, FN and recall, precision and F1-sores
     evalanonym = ValidateAnonymization(args.input_folder, args.results_folder,
-                                       args.processed_folder, args.keys_folder, labels)
+                                       args.processed_folder, args.keys_folder)
 
     # TP, FP, FN per file per label
-    path = Path(args.results_folder).parent / 'statistics'
-    path.mkdir(parents=True, exist_ok=True)
-
-    TP, FN, FP = evalanonym.statistics(df_outcome)
+    TP, FN, FP = evalanonym.statistics(df_merged_ddps)
     logger.info(f"     Saving statistics (TP, FP, FN) to {path}")
-
     TP.to_csv(path / 'TP.csv', index=False)
     FN.to_csv(path / 'FN.csv', index=False)
     FP.to_csv(path / 'FP.csv', index=False)
-    df_outcome.to_csv(path / 'everything.csv', index=False)
 
     # Validation outcome per file per label
-    validation_outcome = evalanonym.validation(df_outcome, TP, FN, FP)
+    validation_outcome = evalanonym.validation(df_merged_ddps, TP, FN, FP)
     logger.info(f"     Saving outcome of validation process to {path.parent}")
     validation_outcome.to_csv(path.parent / 'validation_deidentification.csv', index=True)
 

@@ -83,7 +83,7 @@ class ImportFiles:
 
         return anon_text
 
-    def unzipping(self, package):
+    def unzipping(self):
         """ Unzip data packages """
 
         output = self.results_folder.parent / 'temporary'

@@ -170,8 +170,7 @@ class ValidateAnonymizationDDP:
         importing = ImportFiles(self.input_folder, self.results_folder, self.processed_folder, self.keys_folder)
 
         key_files = importing.load_keys()
-        # packages = list(key_files.keys()) # enter what packages you want to check
-        packages = ['horsesarecool52_20201020']
+        packages = list(key_files.keys()) # enter what packages you want to check
 
         # Count number of labels per file per DDP
         df_outcome = pd.DataFrame()
@@ -192,39 +191,11 @@ class ValidateAnonymizationDDP:
             df_outcome = df_outcome.append(data_outcome, ignore_index=True)
             number += 1
 
-        return df_outcome, labels
+        return df_outcome
 
-def init_logging(log_file: Path):
-    """
-    Initialise Python logger
-    :param log_file: Path to the log file.
-    """
-    logger = logging.getLogger('validating-ddp')
-    logger.setLevel('INFO')
-
-    # creating a formatter
-    formatter = logging.Formatter('- %(name)s - %(levelname)-8s: %(message)s')
-
-    # set up logging to file
-    fh = logging.FileHandler(log_file, 'w', 'utf-8')
-    fh.setLevel(logging.INFO)
-
-    # Set up logging to console
-    ch = logging.StreamHandler()
-    ch.setLevel(logging.INFO)
-
-    # Set handler format
-    fh.setFormatter(formatter)
-    ch.setFormatter(formatter)
-
-    # Add the handler to the root logger
-    logger.addHandler(fh)
-    logger.addHandler(ch)
-
-    return logger
 
 def main():
-    parser = argparse.ArgumentParser(description='Validatie anonymization process.')
+    parser = argparse.ArgumentParser(description='DDP based validation anonymization process.')
     parser.add_argument("--results_folder", "-r", help="Enter path to folder where result of Label-Studio can be found",
                         default=".")
     parser.add_argument("--input_folder", "-i", help="Enter path to folder where the raw data packages can be found",
@@ -235,16 +206,12 @@ def main():
                         default=".")
     parser.add_argument("--log_file", "-l", help="Enter path to log file",
                         default="log_eval_insta.txt")
-
     args = parser.parse_args()
-
-    logger = init_logging(Path(args.log_file))
-    logger.info(f"Started validation process:")
 
     evalanonym = ValidateAnonymizationDDP(args.input_folder, args.results_folder,
                                           args.processed_folder, args.keys_folder)
+    df_outcome, labels = evalanonym.merge_packages()
 
-    df_outcome = evalanonym.merge_packages()
     path = Path(args.results_folder).parent / 'statistics'
     df_outcome.to_csv(path / 'everything.csv', index=False)
 

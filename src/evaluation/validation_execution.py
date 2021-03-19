@@ -3,12 +3,12 @@ import pandas as pd
 from sklearn.metrics import f1_score, precision_score, recall_score
 import logging
 import argparse
-from validation_packagebased import ValidateAnonymizationDDP
+from validation_packagebased import ValidatePackage
 from import_files import ImportFiles
 
 
-class ValidateAnonymization:
-    """ Detect and anonymize personal information in Instagram data packages"""
+class ValidateExecution:
+    """ Validate de-identification of PII in Instagram data packages"""
 
     def __init__(self, out_path: Path, df_merged:pd.DataFrame):
 
@@ -232,30 +232,38 @@ def main():
 
     importing = ImportFiles(args.input_folder, args.results_folder, args.processed_folder, args.keys_folder)
     key_files = importing.load_keys()
-    packages = list(key_files.keys()) # enter what packages you want to check
+    packages = list(key_files.keys()) 
 
     # Count labels and hashes per file per DDP
     df_outcome = pd.DataFrame()
     number = 1
     for package in packages:
-        validatingddp = ValidateAnonymizationDDP(package,args.input_folder, args.results_folder,
-                                             args.processed_folder, args.keys_folder)
-        data_outcome = validatingddp.count_labels()
+        logger.info(f'  Scoring DDP \'{package}\' ({number}/{len(packages)})')
+        raw_file, result = importing.load_results(package)
+        
+        key_file = key_files[package]
+        package_hashed = key_file[package]
+        anon_text = importing.open_package(package, package_hashed)
+        
+        val_ddp = ValidatePackage(package,anon_text,package_hashed,key_file,result,raw_file)
+
+        data_outcome = val_ddp.execute()
         df_outcome = df_outcome.append(data_outcome, ignore_index=True)
         number += 1
 
+    # Write labels and hashes of all files of all DDPs
     path = Path(args.results_folder).parent / 'statistics'
     path.mkdir(parents=True, exist_ok=True)
     df_outcome.to_csv(path / 'everything.csv', index=False)
 
     # Calculate TP, FP, FN and recall, precision and F1-sores
-    evalanonym = ValidateAnonymization(path,df_outcome)
+    val_exc= ValidateExecution(path,df_outcome)
 
     # Write TP, FP, FN per file per label
-    evalanonym.write_stats()
+    val_exc.write_stats()
 
     # Write validation outcome per file per label
-    evalanonym.write_validation()
+    val_exc.write_validation()
 
     logger.info(f"Finished! :) ")
 

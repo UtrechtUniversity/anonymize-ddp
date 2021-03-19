@@ -3,55 +3,57 @@ import pandas as pd
 import logging
 import argparse
 import re
-from import_files import ImportFiles
 
 
-class ValidateAnonymizationDDP:
+class ValidatePackage:
     """ Detect and anonymize personal information in Instagram data packages"""
 
-    def __init__(self, package:Path, input_folder: Path, results_folder: Path, processed_folder: Path, keys_folder: Path):
+    def __init__(self,package,anon_text,package_hashed, key_file, result, raw_file):
 
         self.logger = logging.getLogger('validating.DPP-based')
         self.package = package
-        self.input_folder = Path(input_folder)
-        self.results_folder = Path(results_folder)
-        self.processed_folder = Path(processed_folder)
-        self.keys_folder = Path(keys_folder)
+
+        self.anon_text = anon_text
+        self.package_hashed = package_hashed
+        self.key_file = key_file
+        self.result = result
+        self.raw_file = raw_file
+        self.labels = list(self.result['label'].unique())
 
         self.regex = r"(?:(?<=\\n)|(?<=[\W]))(?:(?<!instagram.com\/)(?<!stories\/)){}(?=[\W])(?![@])"
         self.regex2 = '{}(?=[\W])'
 
-    def execute(self, anon_text, package, package_hashed, key_file, result, raw_file, labels):
+    def execute(self):
         """ Per DDP per file, count original and hashed PII """
 
         outcome_df = pd.DataFrame()
 
-        for label in labels:
-            labeled_text = self.filter_labels(label, result)
+        for label in self.labels:
+            labeled_text = self.filter_labels(label)
             self.logger.info(f'      Counting text labeled as \'{label}\'')
 
             if label == 'Email':
                 subt = '__emailaddress'
-                outcome = self.compare_labels(anon_text, labeled_text, subt, package_hashed, raw_file)
+                outcome = self.compare_labels(subt,labeled_text)
             elif label == 'Phone':
                 subt = '__phonenumber'
-                outcome = self.compare_labels(anon_text, labeled_text, subt, package_hashed, raw_file)
+                outcome = self.compare_labels(subt,labeled_text)
             elif label == 'URL':
                 subt = '__url'
-                outcome = self.compare_labels(anon_text, labeled_text, subt, package_hashed, raw_file)
+                outcome = self.compare_labels(subt,labeled_text)
             else:
-                outcome = self.compare_names(anon_text, labeled_text, package_hashed, key_file, raw_file, package)
+                outcome = self.compare_names(labeled_text)
 
             outcome_df = outcome_df.append(outcome, ignore_index=True)
 
-        outcome_df = self.ddp_merge(outcome_df, package_hashed)
+        total_df = self.ddp_merge(outcome_df)
 
-        return outcome_df
+        return total_df
 
-    def filter_labels(self, label, result):
+    def filter_labels(self,label):
         """ Create frequency table of labeled raw text per file per package """
 
-        count_labels = result.groupby(['labeled_text', 'file', 'package',
+        count_labels = self.result.groupby(['labeled_text', 'file', 'package',
                                        'label']).size().reset_index(name='labeled_count')
         count_labels = count_labels.sort_values(by=['package', 'file'], ascending=True).reset_index(drop=True)
 
@@ -60,32 +62,32 @@ class ValidateAnonymizationDDP:
 
         return labeled_text
 
-    def compare_names(self, anon_text, labeled_text, package_hashed, key_file, raw_file, package):
+    def compare_names(self,labeled_text):
         """ Create overview of original and hashed occurance of sensitive info """
 
         # Add new columns to labeled_text
         labeled_text = labeled_text.reindex(columns=labeled_text.columns.tolist() + ['text_hashed', 'package_hashed',
                                                                                      'count_raw', 'count_anon',
                                                                                      'count_hashed_anon'])
-        labeled_text['package_hashed'] = package_hashed
+        labeled_text['package_hashed'] = self.package_hashed
 
         # Count labeled_text and hashed_text occurances in raw and de-identified DDPs
         for row, file in enumerate(labeled_text['file']):
             text = labeled_text['labeled_text'][row]
 
             try:
-                key_file_lower = {i.lower(): v for i, v in key_file.items()}
+                key_file_lower = {i.lower(): v for i, v in self.key_file.items()}
                 subt = key_file_lower[text.lower().strip()]
             except KeyError:
-                self.logger.warning(f'          No hash for {text} from {file} in {package}\'s key file')
+                self.logger.warning(f'          No hash for {text} from {file} in {self.package}\'s key file')
                 subt = '__NOHASH__'
             labeled_text.loc[row, 'text_hashed'] = subt
 
-            raw = raw_file['raw_text'][raw_file['file'] == file].reset_index(drop=True)[0]
+            raw = self.raw_file['raw_text'][self.raw_file['file'] == file].reset_index(drop=True)[0]
             occ_raw = re.findall(self.regex.format(text.lower()), raw.lower())
             labeled_text.loc[row, 'count_raw'] = len(occ_raw)
 
-            anonymized = anon_text['text'][anon_text['file'] == file].reset_index(drop=True)[0]
+            anonymized = self.anon_text['text'][self.anon_text['file'] == file].reset_index(drop=True)[0]
             occ_text = re.findall(self.regex.format(text.lower()), str(anonymized).lower())
             labeled_text.loc[row, 'count_anon'] = len(occ_text)
 
@@ -94,7 +96,7 @@ class ValidateAnonymizationDDP:
 
         return labeled_text
 
-    def compare_labels(self, anon_text, labeled_text, subt, package_hashed, raw_file):
+    def compare_labels(self,subt,labeled_text):
         """ Create overview of original and hashed occurance of sensitive info """
 
         labeled_text_long = labeled_text
@@ -103,15 +105,15 @@ class ValidateAnonymizationDDP:
         labeled_text = labeled_text.groupby(['label', 'file', 'package'])['labeled_count'].sum().reset_index(name='labeled_count')
         labeled_text = labeled_text.reindex(columns=labeled_text.columns.tolist() + ['text_hashed', 'package_hashed',
                                                                                      'count_raw', 'count_anon', 'count_hashed_anon'])
-        labeled_text['package_hashed'] = package_hashed
+        labeled_text['package_hashed'] = self.package_hashed
         labeled_text['text_hashed'] = subt
 
         # Count labeled_text and hashed_text occurances in raw and de-identified DDPs
         for row, file in enumerate(labeled_text['file']):
             text = list(labeled_text_long['labeled_text'][labeled_text_long['file'] == file])
 
-            raw = raw_file['raw_text'][(raw_file['file'] == file)].reset_index(drop=True)[0]
-            anonymized = anon_text['text'][anon_text['file'] == file].reset_index(drop=True)[0]
+            raw = self.raw_file['raw_text'][(self.raw_file['file'] == file)].reset_index(drop=True)[0]
+            anonymized = self.anon_text['text'][self.anon_text['file'] == file].reset_index(drop=True)[0]
 
             occ_raw = occ_text = 0
             for item in text:
@@ -140,12 +142,12 @@ class ValidateAnonymizationDDP:
 
         return labeled_text
 
-    def ddp_merge(self, df_outcome, package_hashed):
+    def ddp_merge(self,df_outcome):
         """ Merge all occurrences of DDP PII """
 
         count_hash = df_outcome.groupby(['file', 'package', 'text_hashed'])['text_hashed'].count().reset_index(name='total')
         count_hash_recur = count_hash[(count_hash['total'] > 1) &
-                                      (count_hash['text_hashed'] == '__'+package_hashed.rsplit('_', 1)[0])].reset_index(drop=True)
+                                      (count_hash['text_hashed'] == '__'+self.package_hashed.rsplit('_', 1)[0])].reset_index(drop=True)
 
         pii_index = []
         for i in count_hash_recur.index:
@@ -165,57 +167,8 @@ class ValidateAnonymizationDDP:
         check = check.append(pii_package, ignore_index=True)
 
         return check
-
-    def count_labels(self):
-        """Count labels and corresponding hashes for all files in DDP"""
+   
     
-        self.logger.info(f'  Scoring DDP {self.package}')
-
-        importing = ImportFiles(self.input_folder, self.results_folder, self.processed_folder, self.keys_folder)
-        raw_file, result = importing.load_results(self.package)
-
-        key_files = importing.load_keys()
-        key_file = key_files[self.package]
-        package_hashed = key_file[self.package]
-
-        anon_text = importing.open_package(self.package, package_hashed)
-
-        labels = list(result['label'].unique())
-
-        data_outcome = self.execute(anon_text, self.package, package_hashed, key_file, result, raw_file, labels)
-
-        return data_outcome
-    
-    
-    
-    # def merge_packages(self):
-    #     # Load fixed files one time
-    #     importing = ImportFiles(self.input_folder, self.results_folder, self.processed_folder, self.keys_folder)
-
-    #     key_files = importing.load_keys()
-    #     packages = list(key_files.keys()) # enter what packages you want to check
-
-    #     # Count number of labels per file per DDP
-    #     df_outcome = pd.DataFrame()
-    #     number = 1
-    #     for package in packages:
-    #         self.logger.info(f'  Scoring DDP \'{package}\' ({number}/{len(packages)})')
-
-    #         raw_file, result = importing.load_results(package)
-
-    #         key_file = key_files[package]
-    #         package_hashed = key_file[package]
-
-    #         anon_text = importing.open_package(package, package_hashed)
-
-    #         labels = list(result['label'].unique())
-
-    #         data_outcome = self.execute(anon_text, package, package_hashed, key_file, result, raw_file, labels)
-    #         df_outcome = df_outcome.append(data_outcome, ignore_index=True)
-    #         number += 1
-
-    #     return df_outcome
-
 
 def main():
     parser = argparse.ArgumentParser(description='DDP based validation anonymization process.')

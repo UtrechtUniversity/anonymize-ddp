@@ -9,9 +9,10 @@ from import_files import ImportFiles
 class ValidateAnonymizationDDP:
     """ Detect and anonymize personal information in Instagram data packages"""
 
-    def __init__(self, input_folder: Path, results_folder: Path, processed_folder: Path, keys_folder: Path):
+    def __init__(self, package:Path, input_folder: Path, results_folder: Path, processed_folder: Path, keys_folder: Path):
 
         self.logger = logging.getLogger('validating.DPP-based')
+        self.package = package
         self.input_folder = Path(input_folder)
         self.results_folder = Path(results_folder)
         self.processed_folder = Path(processed_folder)
@@ -165,33 +166,55 @@ class ValidateAnonymizationDDP:
 
         return check
 
-    def merge_packages(self):
-        # Load fixed files one time
+    def count_labels(self):
+        """Count labels and corresponding hashes for all files in DDP"""
+    
+        self.logger.info(f'  Scoring DDP {self.package}')
+
         importing = ImportFiles(self.input_folder, self.results_folder, self.processed_folder, self.keys_folder)
+        raw_file, result = importing.load_results(self.package)
 
         key_files = importing.load_keys()
-        packages = list(key_files.keys()) # enter what packages you want to check
+        key_file = key_files[self.package]
+        package_hashed = key_file[self.package]
 
-        # Count number of labels per file per DDP
-        df_outcome = pd.DataFrame()
-        number = 1
-        for package in packages:
-            self.logger.info(f'  Scoring DDP \'{package}\' ({number}/{len(packages)})')
+        anon_text = importing.open_package(self.package, package_hashed)
 
-            raw_file, result = importing.load_results(package)
+        labels = list(result['label'].unique())
 
-            key_file = key_files[package]
-            package_hashed = key_file[package]
+        data_outcome = self.execute(anon_text, self.package, package_hashed, key_file, result, raw_file, labels)
 
-            anon_text = importing.open_package(package, package_hashed)
+        return data_outcome
+    
+    
+    
+    # def merge_packages(self):
+    #     # Load fixed files one time
+    #     importing = ImportFiles(self.input_folder, self.results_folder, self.processed_folder, self.keys_folder)
 
-            labels = list(result['label'].unique())
+    #     key_files = importing.load_keys()
+    #     packages = list(key_files.keys()) # enter what packages you want to check
 
-            data_outcome = self.execute(anon_text, package, package_hashed, key_file, result, raw_file, labels)
-            df_outcome = df_outcome.append(data_outcome, ignore_index=True)
-            number += 1
+    #     # Count number of labels per file per DDP
+    #     df_outcome = pd.DataFrame()
+    #     number = 1
+    #     for package in packages:
+    #         self.logger.info(f'  Scoring DDP \'{package}\' ({number}/{len(packages)})')
 
-        return df_outcome
+    #         raw_file, result = importing.load_results(package)
+
+    #         key_file = key_files[package]
+    #         package_hashed = key_file[package]
+
+    #         anon_text = importing.open_package(package, package_hashed)
+
+    #         labels = list(result['label'].unique())
+
+    #         data_outcome = self.execute(anon_text, package, package_hashed, key_file, result, raw_file, labels)
+    #         df_outcome = df_outcome.append(data_outcome, ignore_index=True)
+    #         number += 1
+
+    #     return df_outcome
 
 
 def main():

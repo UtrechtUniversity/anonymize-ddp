@@ -4,6 +4,7 @@ from sklearn.metrics import f1_score, precision_score, recall_score
 import logging
 import argparse
 from validation_packagebased import ValidateAnonymizationDDP
+from import_files import ImportFiles
 
 
 class ValidateAnonymization:
@@ -215,26 +216,38 @@ def main():
     logger.info(f"Started validation process:")
 
     # Count labels per DDP and merge final results
-    validatingddp = ValidateAnonymizationDDP(args.input_folder, args.results_folder,
+    importing = ImportFiles(args.input_folder, args.results_folder, args.processed_folder, args.keys_folder)
+    key_files = importing.load_keys()
+    packages = list(key_files.keys()) # enter what packages you want to check
+
+    # Count number of labels per file per DDP
+    df_outcome = pd.DataFrame()
+    number = 1
+    for package in packages:
+        validatingddp = ValidateAnonymizationDDP(package,args.input_folder, args.results_folder,
                                              args.processed_folder, args.keys_folder)
-    df_merged_ddps = validatingddp.merge_packages()
+        data_outcome = validatingddp.count_labels()
+        df_outcome = df_outcome.append(data_outcome, ignore_index=True)
+        number += 1
+
+    #df_merged_ddps = validatingddp.merge_packages()
     path = Path(args.results_folder).parent / 'statistics'
     path.mkdir(parents=True, exist_ok=True)
-    df_merged_ddps.to_csv(path / 'everything.csv', index=False)
+    df_outcome.to_csv(path / 'everything_MdV.csv', index=False)
 
     # Calculate TP, FP, FN and recall, precision and F1-sores
     evalanonym = ValidateAnonymization(args.input_folder, args.results_folder,
                                        args.processed_folder, args.keys_folder)
 
     # TP, FP, FN per file per label
-    TP, FN, FP = evalanonym.statistics(df_merged_ddps)
+    TP, FN, FP = evalanonym.statistics(df_outcome)
     logger.info(f"     Saving statistics (TP, FP, FN) to {path}")
     TP.to_csv(path / 'TP.csv', index=False)
     FN.to_csv(path / 'FN.csv', index=False)
     FP.to_csv(path / 'FP.csv', index=False)
 
-    # Validation outcome per file per label
-    validation_outcome = evalanonym.validation(df_merged_ddps, TP, FN, FP)
+    # # Validation outcome per file per label
+    validation_outcome = evalanonym.validation(df_outcome, TP, FN, FP)
     logger.info(f"     Saving outcome of validation process to {path.parent}")
     validation_outcome.to_csv(path.parent / 'validation_deidentification.csv', index=True)
 

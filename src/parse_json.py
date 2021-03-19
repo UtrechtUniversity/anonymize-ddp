@@ -32,17 +32,10 @@ class ParseJson:
         for file in self.input_folder.glob('*.json'):
             # Per json file: extract sensitive info+labels and store in dict
             with file.open(encoding="utf8") as f:
-                if file.stem == 'profile':
-                    data = json.load(f)
-                    key_dict = {data['name']: '__personname',
-                                re.findall(r'[a-zA-Z]{2,}', data['name'])[0]: '__personname',
-                                re.findall(r'[a-zA-Z]{2,}', data['name'])[-1]: '__personname'}
-                    keys.append(key_dict)
-                else:
-                    key_dict = {}
-                    data = json.load(f)
-                    res = self.extract(data, key_dict)
-                    keys.append(res)
+                key_dict = {}
+                data = json.load(f)
+                res = self.extract(data,key_dict)
+                keys.append(res)
 
         # Add common given names to dictionary
         common_names = self.common_names()
@@ -58,21 +51,15 @@ class ParseJson:
 
     def extract(self, obj, key_dict: dict) -> dict:
         """Recursively search for values of key in JSON tree."""
-        exceptions = ['created_at', 'instagram', 'mp4_size', 'text', 'webp_size',
-                      'height', 'frames', 'captions', 'taken_at', 'timestamp', 'date',
-                      'date_joined', 'date_of_birth', 'caption', 'width', 'size', 'time']
-
+        exceptions = ['created_at', 'instagram', 'mp4_size', 'webp_size', 'height', 'frames']
         if isinstance(obj, dict):
             for k, v in obj.items():
                 if v:
                     if isinstance(v, (dict, list)):
                         self.extract(v, key_dict)
                     elif isinstance(v, str):
-                        if self.check_name(k) and self.check_datetime(v):
-                            if k not in exceptions:
-                                key_dict[k] = '__name'
                         # If the key matches predefined labels, value may contain sensitive info
-                        elif any(label.match(k) for label in self.labels):
+                        if any(label.match(k) for label in self.labels):
                             if re.match(self.email, v):
                                 key_dict[v] = '__emailaddress'
                             elif self.check_phone(v):
@@ -80,25 +67,18 @@ class ParseJson:
                             elif self.check_name(v):
                                 if v not in exceptions:
                                     key_dict[v] = '__name'
+                        elif self.check_name(k) and self.check_datetime(v):
+                            if k not in exceptions:
+                                key_dict[k] = '__name'
         elif isinstance(obj, list):
             if obj:
                 try:
                     names = self.get_username(obj)
                     for name in names:
-                        if self.check_name(name):
-                            key_dict[name] = '__name'
+                        key_dict[name] = '__name'
                 except:
-                    tags = re.findall('(?<=\s@)[\w.]{3,30}(?=[\W])', str(obj))
-                    tags += re.findall('(?<=Shared )[\w.]{3,30}(?=[\'s])', str(obj))
-                    for tag in tags:
-                        key_dict[tag] = '__name'
-
                     for item in obj:
-                        try:
-                            self.extract(item, key_dict)
-                        except:
-                            if re.match(r'[0-9-]{6,13}', item['text']):
-                                key_dict[item['text']] = '__phonenumber'
+                        self.extract(item, key_dict)
 
         # Add package filename to key dict as the name of the output package needs to be hashed
         if self.package_user not in key_dict:
@@ -114,7 +94,7 @@ class ParseJson:
         labels = [r'search_click',
                   r'participants',
                   r'sender',
-                  r'author',
+                  r'author'
                   r'^\S*mail',
                   r'^\S*name',
                   r'^\S*friends$',
@@ -130,7 +110,7 @@ class ParseJson:
     def check_name(self, text: str):
         """check if given string is valid username"""
 
-        name = r'^(?=\S*[a-zA-Z])[A-Za-z0-9_.]{3,30}$'
+        name = r'^\S{6,}$'
 
         try:
             int(text)
@@ -174,8 +154,8 @@ class ParseJson:
             for i in obj:
                 if i not in matches:
                     try:
-                        res = self.check_name(i)
-                        usr_list.append(res)
+                        res = re.match(self.usr, i)
+                        usr_list.append(res.group(0))
                     except:
                         pass
 
@@ -189,10 +169,9 @@ class ParseJson:
             names = [i.strip() for i in f.readlines()]
 
         # Create dictionary with original name and mingled substitute
-        exceptions = ['Van', 'Door', 'Can']
         name_dict = {}
         for name in set(names):
-            if len(name) > 1 and name not in exceptions:
+            if len(name) > 1:
                 name_dict[name] = '__name'
 
         return name_dict
@@ -201,9 +180,7 @@ class ParseJson:
     def mingle(text: str) -> str:
         """ Creates scrambled version with letters and numbers of entered word """
 
-        text = str(text).lower()
-
-        if len(text) > 1:
+        if len(str(text)) > 1:
             pseudo = "__" + hashlib.md5(text.encode()).hexdigest()
         else:
             pseudo = ""
@@ -215,7 +192,7 @@ class ParseJson:
         """Format irregular list of dictionaries and remove duplicates"""
 
         no_dupl = [i for n, i in enumerate(obj) if i not in obj[n + 1:]]
-        no_dupl.reverse()
+
         new_dict = {k: v for d in no_dupl for k, v in d.items()}
 
         return new_dict
@@ -258,6 +235,7 @@ def main():
 
     key_series = pd.Series(key_dict, name='subt')
     key_series.to_csv(output_folder / 'keys.csv', index_label='id', header=True)
+
 
 if __name__ == '__main__':
     main()

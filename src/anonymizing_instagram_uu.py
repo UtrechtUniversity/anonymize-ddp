@@ -68,7 +68,7 @@ class AnonymizeInstagram:
                                     p.replace(Path(unpacked, f"{p.stem}_{index - 1}{p.suffix}"))
                                 shutil.copy(fileName, unpacked)
             else:
-                self.logger.warning(f'Can not extract {self.zip_file}, do nothing')
+                self.logger.warning('Can not extract {self.zip_file}, do nothing')
                 unpacked = ' '
 
         except Exception as e:
@@ -106,14 +106,11 @@ class AnonymizeInstagram:
             # Replace bio and gender info
             bio = re.findall(re.compile("biography\": \"(.*?)\""), file)
             gender = re.findall(re.compile("gender\": \"(.*?)\""), file)
-            birth = re.findall(re.compile("\"\S*birth\": \"(.*?)\""), file)
 
             if len(bio) >= 1:
                 file = file.replace(bio[0], '__bio')
             if len(gender) >= 1:
                 file = file.replace(gender[0], '__gender')
-            if len(birth) >= 1:
-                file = file.replace(birth[0], '__birthday')
 
             # Save files
             df = json.loads(file)
@@ -134,37 +131,23 @@ class AnonymizeInstagram:
             # merge two dictionaries; values from part_dict overwrite values from key_dict
             temp_key_dict = parser.create_keys()
             part_dict = self.read_participants()
-
-            part_keys = {i.lower(): v for i, v in part_dict.items()}
-
-            try:
-                dupl = [i for i in temp_key_dict.keys() if i.lower() in part_keys.keys()]
-                for i in dupl:
-                    temp_key_dict[i] = part_keys[i.lower()]
-            except:
-                next
-
             key_dict = {**temp_key_dict, **part_dict}
         else:
             key_dict = parser.create_keys()
 
-        # Make sure the ddp name (username_YYYYMMDD) gets the same hash as the username (username) + YYYYMMDD
         if key_dict[name].startswith("__"):
             key_dict[self.unpacked.name] = key_dict[name][2:] + timestamp
         else:
             key_dict[self.unpacked.name] = key_dict[name] + timestamp
 
-        # Make sure that the personal name of the ddp gets the same hash as the username
-        persons = [key for (key, value) in key_dict.items() if value == '__personname']
-        for person in persons:
-            key_dict[person] = key_dict[name]
-
         # Add regex pattern to recognize and replace links to other users profiles
-        key_dict[re.compile('(\d{2,4})(\s*|-)[\d\s]{7,10}(?=[\W])')] = '__phonenumber'
-        key_dict[re.compile('https:\S*instagram\w*.com\S*?(?=[\"\'\.\s,}])')] = '__url'
-        key_dict[re.compile('[a-zA-ZÀ-ÿ0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+')] = '__emailaddress'
+        key_dict['r#(?<!\d)\d{9,10}(?!\d)'] = '__phone'
+        key_dict['r#[0-9]{2}\-[0-9]{8}'] = '__phone'
+        key_dict['r#https:\/\/scontent.*?instagram.com\/.*?(?=["\s,}])'] = '__url'
+        key_dict['r#https:\/\/www.*?instagram.com\/.*?(?=["\s,}])'] = '__url'
+        key_dict['r#[\w\.-]+@[\w\.-]+'] = '__email'
 
-        # save key file with hashed name of package owner in (newly created) key folder
+        # hash name of package owner in name output file
         sub = key_dict[self.unpacked.name]
 
         key_folder = self.output_folder.parent / 'keys'
@@ -173,9 +156,9 @@ class AnonymizeInstagram:
 
         # write keys to csv file as input for anonymizeUU package
         key_series = pd.Series(key_dict, name='subt')
-        key_series.to_csv(outfile, index_label='id', header=True, encoding='utf-8')
+        key_series.to_csv(outfile, index_label='id', header=True)
 
-        return key_dict
+        return outfile
 
     def preprocess_json(self):
         """ Preprocess all json files in data package"""
@@ -239,13 +222,10 @@ class AnonymizeInstagram:
 
         self.logger.info(f"Pseudonymizing text files in {self.unpacked.name}...")
 
-        def clean(string):
-            return string.replace(r"\n", " ")
-
         if self.cap:
-            anonymize_csv = Anonymize(key_file, use_word_boundaries=True, preprocess_text=clean)
+            anonymize_csv = Anonymize(key_file, use_word_boundaries=True)
         else:
-            anonymize_csv = Anonymize(key_file, use_word_boundaries=True, flags=re.IGNORECASE, preprocess_text=clean)
+            anonymize_csv = Anonymize(key_file, use_word_boundaries=True, flags=re.IGNORECASE)
 
         anonymize_csv.substitute(self.unpacked)
 

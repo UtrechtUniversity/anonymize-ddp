@@ -68,7 +68,7 @@ class AnonymizeInstagram:
                                     p.replace(Path(unpacked, f"{p.stem}_{index - 1}{p.suffix}"))
                                 shutil.copy(fileName, unpacked)
             else:
-                self.logger.warning('Can not extract {self.zip_file}, do nothing')
+                self.logger.warning(f'Can not extract {self.zip_file}, do nothing')
                 unpacked = ' '
 
         except Exception as e:

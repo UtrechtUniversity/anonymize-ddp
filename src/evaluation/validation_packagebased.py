@@ -6,7 +6,7 @@ import re
 
 
 class ValidatePackage:
-    """ Detect and anonymize personal information in Instagram data packages"""
+    """ Compare de-identified Instagram DDPs with ground truth (labeled, raw DDPs) """
 
     def __init__(self,package,anon_text,package_hashed, key_file, result, raw_file):
 
@@ -21,10 +21,10 @@ class ValidatePackage:
         self.labels = list(self.result['label'].unique())
 
         self.regex = r"(?:(?<=\\n)|(?<=[\W]))(?:(?<!instagram.com\/)(?<!stories\/)){}(?=[\W])(?![@])"
-        self.regex2 = '{}(?=[\W])'
+        self.regex2 = r"{}(?=[\W])"
 
     def execute(self):
-        """ Per DDP per file, count original and hashed PII """
+        """ Create overview of all labeled and (corresponding) hashed PII-occurrences, per file per DDP """
 
         outcome_df = pd.DataFrame()
 
@@ -50,11 +50,11 @@ class ValidatePackage:
 
         return total_df
 
-    def filter_labels(self,label):
-        """ Create frequency table of labeled raw text per file per package """
+    def filter_labels(self, label):
+        """ Create frequency table of labeled PII, per label per file per DDP """
 
         count_labels = self.result.groupby(['labeled_text', 'file', 'package',
-                                       'label']).size().reset_index(name='labeled_count')
+                                            'label']).size().reset_index(name='labeled_count')
         count_labels = count_labels.sort_values(by=['package', 'file'], ascending=True).reset_index(drop=True)
 
         labeled_text = count_labels.loc[count_labels['label'] == label]
@@ -62,8 +62,8 @@ class ValidatePackage:
 
         return labeled_text
 
-    def compare_names(self,labeled_text):
-        """ Create overview of original and hashed occurance of sensitive info """
+    def compare_names(self, labeled_text):
+        """ Create dataframe with number of labeled and hashed PII, per label ((user)names) per file per DDP """
 
         # Add new columns to labeled_text
         labeled_text = labeled_text.reindex(columns=labeled_text.columns.tolist() + ['text_hashed', 'package_hashed',
@@ -71,7 +71,7 @@ class ValidatePackage:
                                                                                      'count_hashed_anon'])
         labeled_text['package_hashed'] = self.package_hashed
 
-        # Count labeled_text and hashed_text occurances in raw and de-identified DDPs
+        # Count labeled_text and hashed_text occurrences in raw and de-identified DDPs
         for row, file in enumerate(labeled_text['file']):
             text = labeled_text['labeled_text'][row]
 
@@ -96,19 +96,21 @@ class ValidatePackage:
 
         return labeled_text
 
-    def compare_labels(self,subt,labeled_text):
-        """ Create overview of original and hashed occurance of sensitive info """
+    def compare_labels(self, subt, labeled_text):
+        """ Create dataframe with number of labeled and hashed PII, per label (e-mail, phone, URL) per file per DDP """
 
         labeled_text_long = labeled_text
 
         # Add new columns to labeled_text
-        labeled_text = labeled_text.groupby(['label', 'file', 'package'])['labeled_count'].sum().reset_index(name='labeled_count')
+        labeled_text = labeled_text.groupby(['label', 'file',
+                                             'package'])['labeled_count'].sum().reset_index(name='labeled_count')
         labeled_text = labeled_text.reindex(columns=labeled_text.columns.tolist() + ['text_hashed', 'package_hashed',
-                                                                                     'count_raw', 'count_anon', 'count_hashed_anon'])
+                                                                                     'count_raw', 'count_anon',
+                                                                                     'count_hashed_anon'])
         labeled_text['package_hashed'] = self.package_hashed
         labeled_text['text_hashed'] = subt
 
-        # Count labeled_text and hashed_text occurances in raw and de-identified DDPs
+        # Count labeled_text and hashed_text occurrences in raw and de-identified DDPs
         for row, file in enumerate(labeled_text['file']):
             text = list(labeled_text_long['labeled_text'][labeled_text_long['file'] == file])
 
@@ -117,7 +119,7 @@ class ValidatePackage:
 
             occ_raw = occ_text = 0
             for item in text:
-                url = 'https:\S*instagram\w*.com\S*'
+                url = r"https:\S*instagram\w*.com\S*"
                 if re.match(url, str(item)):
                     pattern = self.regex2.format(url)
                     occ_raw = len(re.findall(pattern, raw))
@@ -142,8 +144,8 @@ class ValidatePackage:
 
         return labeled_text
 
-    def ddp_merge(self,df_outcome):
-        """ Merge all occurrences of DDP PII """
+    def ddp_merge(self, df_outcome):
+        """ Merge all package specific hashes (DDP (user)names) together, per DDP """
 
         count_hash = df_outcome.groupby(['file', 'package', 'text_hashed'])['text_hashed'].count().reset_index(name='total')
         count_hash_recur = count_hash[(count_hash['total'] > 1) &
@@ -155,7 +157,7 @@ class ValidatePackage:
             package = count_hash_recur.loc[i, 'package']
             text_hashed = count_hash_recur.loc[i, 'text_hashed']
             pii_index.extend(df_outcome[(df_outcome['file'] == file) & (df_outcome['package'] == package)
-                              & (df_outcome['text_hashed'] == text_hashed)].index)
+                             & (df_outcome['text_hashed'] == text_hashed)].index)
 
         pii_package_df = df_outcome.loc[pii_index].reset_index(drop=True)
         check = df_outcome.loc[~df_outcome.index.isin(pii_index)].reset_index(drop=True)
@@ -168,7 +170,6 @@ class ValidatePackage:
 
         return check
    
-    
 
 def main():
     parser = argparse.ArgumentParser(description='DDP based validation anonymization process.')
@@ -184,8 +185,8 @@ def main():
                         default="log_eval_insta.txt")
     args = parser.parse_args()
 
-    evalanonym = ValidateAnonymizationDDP(args.input_folder, args.results_folder,
-                                          args.processed_folder, args.keys_folder)
+    evalanonym = ValidatePackage(args.input_folder, args.results_folder,
+                                 args.processed_folder, args.keys_folder)
     df_outcome, labels = evalanonym.merge_packages()
 
     path = Path(args.results_folder).parent / 'statistics'

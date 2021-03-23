@@ -51,7 +51,7 @@ class ParseJson:
 
     def extract(self, obj, key_dict: dict) -> dict:
         """Recursively search for values of key in JSON tree."""
-        exceptions = ['created_at', 'instagram', 'mp4_size', 'webp_size', 'height', 'frames']
+        exceptions = ['created_at', 'instagram', 'mp4_size', 'webp_size', 'height', 'frames', 'captions', 'taken_at', 'timestamp']
         if isinstance(obj, dict):
             for k, v in obj.items():
                 if v:
@@ -164,6 +164,7 @@ class ParseJson:
     def common_names(self) -> dict:
         """Add common given names in NL to keys dictionary; these may occur in free text like messages"""
 
+        # name_file = Path.cwd() / 'Firstnames_NL.lst'
         name_file = Path('src') / 'Firstnames_NL.lst'
         with name_file.open() as f:
             names = [i.strip() for i in f.readlines()]
@@ -235,7 +236,6 @@ def main():
 
     key_series = pd.Series(key_dict, name='subt')
     key_series.to_csv(output_folder / 'keys.csv', index_label='id', header=True)
-
 
 if __name__ == '__main__':
     main()

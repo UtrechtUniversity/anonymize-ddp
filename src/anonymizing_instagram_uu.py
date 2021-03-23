@@ -85,6 +85,7 @@ class AnonymizeInstagram:
         if zipfile.is_zipfile(self.zip_file):
             with ZipFile(self.zip_file, 'r') as zip:
                 zip.extractall(extracted)
+                time.sleep(5)
         else:
             self.logger.warning(f'{self.zip_file} not compressed: copying package to {extracted}')
             shutil.copytree(Path(self.zip_file), extracted)
@@ -192,7 +193,7 @@ class AnonymizeInstagram:
                 self.logger.warning(f"Could not delete {json_file}, no such file")
                 continue
 
-        folders = ['__MACOSX', 'photos', 'profile', 'stories']
+        folders = ['__MACOSX', 'photos', 'profile', 'stories', 'videos']
         for folder in folders:
             try:
                 folder_to_rem = Path(self.unpacked, folder)

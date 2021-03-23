@@ -13,8 +13,6 @@ from typing import Union
 import json
 import zipfile
 import shutil
-from blur_images import BlurImages
-from blur_videos import BlurVideos
 
 
 class AnonymizeInstagram:
@@ -194,9 +192,15 @@ class AnonymizeInstagram:
                 self.logger.warning(f"Could not delete {json_file}, no such file")
                 continue
 
-        folder_to_rem = Path(self.unpacked, '__MACOSX')
-        if folder_to_rem.exists():
-            shutil.rmtree(folder_to_rem)
+        folders = ['__MACOSX', 'photos', 'profile', 'stories']
+        for folder in folders:
+            try:
+                folder_to_rem = Path(self.unpacked, folder)
+                if folder_to_rem.exists():
+                    shutil.rmtree(folder_to_rem)
+            except FileNotFoundError as e:
+                self.logger.warning(f"Could not delete {folder}, no such file")
+                continue
 
         # Extract sensitive info and create key file for remaining json files
         key_file = self.create_key_file()
@@ -230,12 +234,6 @@ class AnonymizeInstagram:
 
         self.logger.info(f"Preprocess {self.unpacked.name}...")
         key_file = self.preprocess_json()
-
-        # images = BlurImages(self.unpacked)
-        # images.blur_images()
-        #
-        # videos = BlurVideos(self.unpacked)
-        # videos.blur_videos()
 
         self.logger.info(f"Pseudonymizing text files in {self.unpacked.name}...")
 

@@ -9,11 +9,11 @@ import csv
 
 
 class ImportFiles:
-    """ Detect and anonymize personal information in Instagram data packages"""
+    """ Import raw, de-identified, and labeled Instagram DDPs """
 
     def __init__(self, input_folder: Path, results_folder: Path, processed_folder: Path, keys_folder: Path):
 
-        self.logger = logging.getLogger('validating.import_files')
+        self.logger = logging.getLogger('validating.importing')
 
         self.input_folder = Path(input_folder)
         self.results_folder = Path(results_folder)
@@ -38,7 +38,7 @@ class ImportFiles:
         return all_keys
 
     def load_results(self, package):
-        """ Load Label-Studio results (labeled raw data packages) into dataframe """
+        """ Load Label-Studio results - i.e., (labeled) raw data packages - into dataframe """
 
         # Load results (json format) of label-studio
         with self.results_folder.open(encoding="utf-8-sig") as f:
@@ -83,8 +83,18 @@ class ImportFiles:
 
         return anon_text
 
+    def create_input_label(self):
+        """ Creating input file (dataframe with raw files per DDP) for Label-Studio"""
+
+        self.unzipping()
+        text = self.merge()
+
+        text_file = self.results_folder / 'text_packages.csv'
+        text.to_csv(text_file, index=False)
+        self.logger.info(f'Saving merged file: {text_file}')
+
     def unzipping(self):
-        """ Unzip data packages """
+        """ Unzip raw DDPs"""
 
         output = self.results_folder.parent / 'temporary'
         output.mkdir(parents=True, exist_ok=True)
@@ -97,7 +107,7 @@ class ImportFiles:
                 zipObj.extractall(output / package)
 
     def merge(self):
-        """ Merge all unpacked files in one file (which forms the input for Label-Studio """
+        """ Merge all unpacked files in one file (which forms the input for Label-Studio) """
 
         output = self.results_folder.parent / 'temporary'
         text = pd.DataFrame()
@@ -116,10 +126,6 @@ class ImportFiles:
                         df = pd.DataFrame(input_data)
                         text = text.append(df, ignore_index=True)
 
-        text_file = self.results_folder / 'text_packages.csv'
-        text.to_csv(text_file, index=False)
-        self.logger.info(f'Saving merged file: {text_file}')
-
         shutil.rmtree(output)
 
         return text
@@ -127,15 +133,15 @@ class ImportFiles:
 
 def main():
     parser = argparse.ArgumentParser(description='Load static files; raw DDPs, Label-Studio result, key_files.')
-    parser.add_argument("--results_folder", "-r", help="Enter path to folder where result of Label-Studio can be found",
+    parser.add_argument("--results_folder", "-r", help="Path to ground truth (Label-Studio's result.json)",
                         default=".")
-    parser.add_argument("--input_folder", "-i", help="Enter path to folder where the raw data packages can be found",
+    parser.add_argument("--input_folder", "-i", help="Path to raw DDPs",
                         default=".")
-    parser.add_argument("--processed_folder", "-p", help="Enter path to folder where the processed (i.e., de-identified) data packages can be found",
+    parser.add_argument("--processed_folder", "-p", help="Path to de-identified DDPs",
                         default=".")
-    parser.add_argument("--keys_folder", "-k", help="Enter path to folder where the key files can be found",
+    parser.add_argument("--keys_folder", "-k", help="Path to key files of de-identified DDPs",
                         default=".")
-    parser.add_argument("--log_file", "-l", help="Enter path to log file",
+    parser.add_argument("--log_file", "-l", help="Path to log file",
                         default="log_importing_files.txt")
 
 

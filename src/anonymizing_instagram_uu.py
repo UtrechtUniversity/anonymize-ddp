@@ -193,7 +193,7 @@ class AnonymizeInstagram:
                 self.logger.warning(f"Could not delete {json_file}, no such file")
                 continue
 
-        folders = ['__MACOSX', 'photos', 'profile', 'stories', 'videos']
+        folders = ['__MACOSX', 'photos', 'profile', 'stories', 'videos', 'direct']
         for folder in folders:
             try:
                 folder_to_rem = Path(self.unpacked, folder)

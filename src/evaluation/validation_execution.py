@@ -232,13 +232,13 @@ def main():
 
     importing = ImportFiles(args.input_folder, args.results_folder, args.processed_folder, args.keys_folder)
     key_files = importing.load_keys()
-    packages = list(key_files.keys()) 
+    packages = list(key_files.keys())
 
     # Count labels and hashes per file per DDP
     df_outcome = pd.DataFrame()
 
     for number, package in enumerate(packages):
-        logger.info(f'  Scoring DDP \'{package}\' ({number}/{len(packages)})')
+        logger.info(f'  Scoring DDP \'{package}\' ({number+1}/{len(packages)})')
         raw_file, result = importing.load_results(package)
         
         key_file = key_files[package]

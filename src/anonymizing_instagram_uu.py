@@ -13,8 +13,8 @@ from typing import Union
 import json
 import zipfile
 import shutil
-from blur_images import BlurImages
-from blur_videos import BlurVideos
+# from blur_images import BlurImages
+# from blur_videos import BlurVideos
 
 
 class AnonymizeInstagram:
@@ -142,7 +142,7 @@ class AnonymizeInstagram:
                 for i in dupl:
                     temp_key_dict[i] = part_keys[i.lower()]
             except:
-                next
+                pass
 
             key_dict = {**temp_key_dict, **part_dict}
         else:

@@ -34,9 +34,12 @@ class ParseJson:
             with file.open(encoding="utf8") as f:
                 if file.stem == 'profile':
                     data = json.load(f)
-                    key_dict = {data['name']: '__personname',
-                                re.findall(r'[a-zA-Z]{2,}', data['name'])[0]: '__personname',
-                                re.findall(r'[a-zA-Z]{2,}', data['name'])[-1]: '__personname'}
+                    try:
+                        key_dict = {data['name']: '__personname',
+                                    re.findall(r'[a-zA-ZÀ-ÿ]{2,}', data['name'])[0]: '__personname',
+                                    re.findall(r'[a-zA-ZÀ-ÿ]{2,}', data['name'])[-1]: '__personname'}
+                    except (KeyError, IndexError):
+                        pass
                     keys.append(key_dict)
                 else:
                     key_dict = {}
@@ -97,8 +100,11 @@ class ParseJson:
                         try:
                             self.extract(item, key_dict)
                         except:
-                            if re.match(r'[0-9-]{6,13}', item['text']):
-                                key_dict[item['text']] = '__phonenumber'
+                            try:
+                                if re.match(r'[0-9-]{6,13}', item['text']):
+                                    key_dict[item['text']] = '__phonenumber'
+                            except KeyError:
+                                pass
 
         # Add package filename to key dict as the name of the output package needs to be hashed
         if self.package_user not in key_dict:
@@ -155,13 +161,12 @@ class ParseJson:
         try:
             res = dateutil.parser.parse(text)
             return res
-        except ValueError:
-            pass
-        try:
-            res = datetime.utcfromtimestamp(int(text))
-            return res
-        except ValueError:
-            pass
+        except:
+            try:
+                res = datetime.utcfromtimestamp(int(text))
+                return res
+            except ValueError:
+                pass
 
     def get_username(self, obj: list):
         """Check if given list contains username"""

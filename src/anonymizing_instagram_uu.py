@@ -141,7 +141,7 @@ class AnonymizeInstagram:
                 for i in dupl:
                     temp_key_dict[i] = part_keys[i.lower()]
             except:
-                next
+                pass
 
             key_dict = {**temp_key_dict, **part_dict}
         else:

@@ -34,9 +34,12 @@ class ParseJson:
             with file.open(encoding="utf8") as f:
                 if file.stem == 'profile':
                     data = json.load(f)
-                    key_dict = {data['name']: '__personname',
-                                re.findall(r'[a-zA-Z]{2,}', data['name'])[0]: '__personname',
-                                re.findall(r'[a-zA-Z]{2,}', data['name'])[-1]: '__personname'}
+                    try:
+                        key_dict = {data['name']: '__personname',
+                                    re.findall(r'[a-zA-ZÀ-ÿ]{2,}', data['name'])[0]: '__personname',
+                                    re.findall(r'[a-zA-ZÀ-ÿ]{2,}', data['name'])[-1]: '__personname'}
+                    except Exception:
+                        pass
                     keys.append(key_dict)
                 else:
                     key_dict = {}

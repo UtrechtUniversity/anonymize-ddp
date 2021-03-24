@@ -100,8 +100,11 @@ class ParseJson:
                         try:
                             self.extract(item, key_dict)
                         except:
-                            if re.match(r'[0-9-]{6,13}', item['text']):
-                                key_dict[item['text']] = '__phonenumber'
+                            try:
+                                if re.match(r'[0-9-]{6,13}', item['text']):
+                                    key_dict[item['text']] = '__phonenumber'
+                            except:
+                                pass
 
         # Add package filename to key dict as the name of the output package needs to be hashed
         if self.package_user not in key_dict:
@@ -158,13 +161,12 @@ class ParseJson:
         try:
             res = dateutil.parser.parse(text)
             return res
-        except ValueError:
-            pass
-        try:
-            res = datetime.utcfromtimestamp(int(text))
-            return res
-        except ValueError:
-            pass
+        except (ValueError, TypeError):
+            try:
+                res = datetime.utcfromtimestamp(int(text))
+                return res
+            except:
+                pass
 
     def get_username(self, obj: list):
         """Check if given list contains username"""

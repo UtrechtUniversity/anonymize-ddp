@@ -161,11 +161,11 @@ class ParseJson:
         try:
             res = dateutil.parser.parse(text)
             return res
-        except (ValueError, TypeError):
+        except:
             try:
                 res = datetime.utcfromtimestamp(int(text))
                 return res
-            except:
+            except ValueError:
                 pass
 
     def get_username(self, obj: list):

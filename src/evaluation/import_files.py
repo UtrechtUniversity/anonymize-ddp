@@ -56,11 +56,10 @@ class ImportFiles:
 
                 for i in label_results[an]['completions']:
                     for j in i['result']:
-                        if len(j['value']['text']) > 2:
-                            inputs = {'labeled_text': [j['value']['text'].strip()], 'label': [j['value']['labels'][0]],
-                                      'file': [file], 'package': [package]}
-                            inputs = pd.DataFrame(inputs)
-                            labeled_df = labeled_df.append(inputs, ignore_index=True)
+                        inputs = {'labeled_text': [j['value']['text'].strip()], 'label': [j['value']['labels'][0]],
+                                  'file': [file], 'package': [package]}
+                        inputs = pd.DataFrame(inputs)
+                        labeled_df = labeled_df.append(inputs, ignore_index=True)
 
         return raw_text, labeled_df
 

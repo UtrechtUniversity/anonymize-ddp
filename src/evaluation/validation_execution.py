@@ -170,16 +170,17 @@ class ValidateExecution:
         """ Write statistics TPs, FPs, FNs to csv, per file per label """
 
         self.logger.info(f"     Saving statistics (TP, FP, FN) to {self.out_path}")
-        self.TP.to_csv(self.out_path / 'TP.csv', index=False)
-        self.FN.to_csv(self.out_path / 'FN.csv', index=False)
-        self.FP.to_csv(self.out_path / 'FP.csv', index=False)
+        self.TP.to_csv(self.out_path / 'TP.csv', index=False, encoding='utf-8')
+        self.FN.to_csv(self.out_path / 'FN.csv', index=False, encoding='utf-8')
+        self.FP.to_csv(self.out_path / 'FP.csv', index=False, encoding='utf-8')
 
     def write_validation(self):
         """ Write outcome of validation process to csv """
 
         self. logger.info(f"     Saving outcome of validation process to {self.out_path.parent}")
         validation_outcome = self.validation()
-        validation_outcome.to_csv(self.out_path.parent / 'validation_deidentification.csv', index=True)
+        validation_outcome.to_csv(self.out_path.parent / 'validation_deidentification.csv', index=True,
+                                  encoding='utf-8')
 
         
 def init_logging(log_file: Path):
@@ -253,7 +254,7 @@ def main():
     # Write labels and hashes of all files of all DDPs
     path = Path(args.results_folder).parent / 'statistics'
     path.mkdir(parents=True, exist_ok=True)
-    df_outcome.to_csv(path / 'everything.csv', index=False)
+    df_outcome.to_csv(path / 'everything.csv', index=False, encoding='utf-8')
 
     # Calculate TP, FP, FN and recall, precision and F1-sores
     val_exc = ValidateExecution(path, df_outcome)

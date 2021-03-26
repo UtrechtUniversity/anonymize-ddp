@@ -8,6 +8,7 @@ import logging
 import pandas as pd
 from pathlib import Path
 import re
+import string
 
 
 class ParseJson:
@@ -29,32 +30,36 @@ class ParseJson:
         self.logger.info(f"Creating key file for {self.input_folder}...")
 
         keys = []
-        for file in self.input_folder.glob('*.json'):
+        for file in input_folder.glob('*.json'):
             # Per json file: extract sensitive info+labels and store in dict
             with file.open(encoding="utf8") as f:
+                key_dict = {}
+                data = json.load(f)
+                res = self.extract(data, key_dict)
+                keys.append(res)
+
                 if file.stem == 'profile':
-                    data = json.load(f)
                     try:
-                        key_dict = {data['name']: '__personname',
+                        key_name = {data['name']: '__personname',
                                     re.findall(r'[a-zA-ZÀ-ÿ]{2,}', data['name'])[0]: '__personname',
                                     re.findall(r'[a-zA-ZÀ-ÿ]{2,}', data['name'])[-1]: '__personname'}
                     except Exception:
                         pass
-                    keys.append(key_dict)
-                else:
-                    key_dict = {}
-                    data = json.load(f)
-                    res = self.extract(data, key_dict)
-                    keys.append(res)
 
         # Add common given names to dictionary
         common_names = self.common_names()
         keys.append(common_names)
 
+        # Add DDP id to dictionary
+        try:
+            keys.append(key_name)
+        except NameError:
+            pass
+
         # Combine separate dictionaries in one
         all_keys = ParseJson.format_dict(keys)
 
-        #replace name labels with hash code
+        # Replace name labels with hash code
         hash_key_dict = {k: (self.mingle(k) if v == '__name' else v) for k, v in all_keys.items()}
 
         return hash_key_dict
@@ -220,8 +225,12 @@ class ParseJson:
         """Format irregular list of dictionaries and remove duplicates"""
 
         no_dupl = [i for n, i in enumerate(obj) if i not in obj[n + 1:]]
-        no_dupl.reverse()
         new_dict = {k: v for d in no_dupl for k, v in d.items()}
+
+        def check(s):
+            return all(i not in string.punctuation for i in s)
+
+        new_dict = {k: v for k, v in new_dict.items() if check(k)}
 
         return new_dict
 

@@ -10,7 +10,7 @@ from import_files import ImportFiles
 class ValidateExecution:
     """ Validate de-identification of PII in Instagram DDPs """
 
-    def __init__(self, out_path: Path, df_merged:pd.DataFrame):
+    def __init__(self, out_path: Path, df_merged: pd.DataFrame):
 
         self.logger = logging.getLogger('validating')
         self.out_path = out_path
@@ -74,7 +74,7 @@ class ValidateExecution:
                     data.loc[row, ['Recall', 'Precision', 'F1']] = self.validation_scores(label, file)
 
                 new_row = [label, 'total'] + list(data.sum(
-                                             numeric_only=True))[:-3] + self.validation_scores(label)
+                    numeric_only=True))[:-3] + self.validation_scores(label)
                 new = pd.DataFrame([new_row], columns=list(data.columns))
                 data = data.append(new, ignore_index=True)
                 final = final.append(data, ignore_index=True)
@@ -84,7 +84,7 @@ class ValidateExecution:
 
         final = final.set_index(['label'])
         self.count_files(final)
-        
+
         return final
 
     def validation_scores(self, label, file=None):
@@ -95,7 +95,7 @@ class ValidateExecution:
             anonymized, missed = self.count_anonymized(label)
         else:
             original = list(self.df_merged['count_raw'][(self.df_merged['file'] == file) &
-                            (self.df_merged['label'] == label)])
+                                                        (self.df_merged['label'] == label)])
             anonymized, missed = self.count_anonymized(label, file)
 
         recall, precision, f1 = self.calc_sores(label, original, anonymized, missed)
@@ -113,9 +113,11 @@ class ValidateExecution:
 
         df_merged['total_missed'] = 0
         for i in range(len(df_merged)):
-            if (df_merged.loc[i, 'count_anon'] == 0) and (df_merged.loc[i, 'count_raw'] >= df_merged.loc[i, 'count_hashed_anon']):
+            if (df_merged.loc[i, 'count_anon'] == 0) and (
+                    df_merged.loc[i, 'count_raw'] >= df_merged.loc[i, 'count_hashed_anon']):
                 df_merged.loc[i, 'total_hashed'] = df_merged.loc[i, 'count_raw']
-            elif (df_merged.loc[i, 'count_anon'] == 0) and (df_merged.loc[i, 'count_raw'] < df_merged.loc[i, 'count_hashed_anon']):
+            elif (df_merged.loc[i, 'count_anon'] == 0) and (
+                    df_merged.loc[i, 'count_raw'] < df_merged.loc[i, 'count_hashed_anon']):
                 df_merged.loc[i, 'total_hashed'] = df_merged.loc[i, 'count_hashed_anon']
             elif df_merged.loc[i, 'count_anon'] > 0:
                 df_merged.loc[i, 'total_hashed'] = df_merged.loc[i, 'count_hashed_anon']
@@ -146,7 +148,8 @@ class ValidateExecution:
             f1 = f1_score(original, anonymized, average='binary', zero_division=0)
         else:
             recall = recall_score(original, anonymized, average='weighted', zero_division=0, sample_weight=original)
-            precision = precision_score(original, anonymized, average='weighted', zero_division=0, sample_weight=original)
+            precision = precision_score(original, anonymized, average='weighted', zero_division=0,
+                                        sample_weight=original)
             f1 = f1_score(original, anonymized, average='weighted', zero_division=0, sample_weight=original)
 
         return [recall, precision, f1]
@@ -170,18 +173,19 @@ class ValidateExecution:
         """ Write statistics TPs, FPs, FNs to csv, per file per label """
 
         self.logger.info(f"     Saving statistics (TP, FP, FN) to {self.out_path}")
-        self.TP.to_csv(self.out_path / 'TP.csv', index=False)
-        self.FN.to_csv(self.out_path / 'FN.csv', index=False)
-        self.FP.to_csv(self.out_path / 'FP.csv', index=False)
+        self.TP.to_csv(self.out_path / 'TP.csv', index=False, encoding='utf-8')
+        self.FN.to_csv(self.out_path / 'FN.csv', index=False, encoding='utf-8')
+        self.FP.to_csv(self.out_path / 'FP.csv', index=False, encoding='utf-8')
 
     def write_validation(self):
         """ Write outcome of validation process to csv """
 
-        self. logger.info(f"     Saving outcome of validation process to {self.out_path.parent}")
+        self.logger.info(f"     Saving outcome of validation process to {self.out_path.parent}")
         validation_outcome = self.validation()
-        validation_outcome.to_csv(self.out_path.parent / 'validation_deidentification.csv', index=True)
+        validation_outcome.to_csv(self.out_path.parent / 'validation_deidentification.csv', index=True,
+                                  encoding='utf-8')
 
-        
+
 def init_logging(log_file: Path):
     """
     Initialise Python logger
@@ -238,13 +242,13 @@ def main():
     df_outcome = pd.DataFrame()
 
     for number, package in enumerate(packages):
-        logger.info(f'  Scoring DDP \'{package}\' ({number+1}/{len(packages)})')
+        logger.info(f'  Scoring DDP \'{package}\' ({number + 1}/{len(packages)})')
         raw_file, result = importing.load_results(package)
-        
+
         key_file = key_files[package]
         package_hashed = key_file[package]
         anon_text = importing.open_package(package, package_hashed)
-        
+
         val_ddp = ValidatePackage(package, anon_text, package_hashed, key_file, result, raw_file)
 
         data_outcome = val_ddp.execute()
@@ -253,7 +257,7 @@ def main():
     # Write labels and hashes of all files of all DDPs
     path = Path(args.results_folder).parent / 'statistics'
     path.mkdir(parents=True, exist_ok=True)
-    df_outcome.to_csv(path / 'everything.csv', index=False)
+    df_outcome.to_csv(path / 'everything.csv', index=False, encoding='utf-8')
 
     # Calculate TP, FP, FN and recall, precision and F1-sores
     val_exc = ValidateExecution(path, df_outcome)

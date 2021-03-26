@@ -8,7 +8,7 @@ import re
 class ValidatePackage:
     """ Compare de-identified Instagram DDPs with ground truth (labeled, raw DDPs) """
 
-    def __init__(self,package,anon_text,package_hashed, key_file, result, raw_file):
+    def __init__(self, package, anon_text, package_hashed, key_file, result, raw_file):
 
         self.logger = logging.getLogger('validating.DPP-based')
         self.package = package
@@ -34,13 +34,13 @@ class ValidatePackage:
 
             if label == 'Email':
                 subt = '__emailaddress'
-                outcome = self.compare_labels(subt,labeled_text)
+                outcome = self.compare_labels(subt, labeled_text)
             elif label == 'Phone':
                 subt = '__phonenumber'
-                outcome = self.compare_labels(subt,labeled_text)
+                outcome = self.compare_labels(subt, labeled_text)
             elif label == 'URL':
                 subt = '__url'
-                outcome = self.compare_labels(subt,labeled_text)
+                outcome = self.compare_labels(subt, labeled_text)
             else:
                 outcome = self.compare_names(labeled_text)
 
@@ -147,9 +147,11 @@ class ValidatePackage:
     def ddp_merge(self, df_outcome):
         """ Merge all package specific hashes (DDP (user)names) together, per DDP """
 
-        count_hash = df_outcome.groupby(['file', 'package', 'text_hashed'])['text_hashed'].count().reset_index(name='total')
+        count_hash = df_outcome.groupby(['file', 'package', 'text_hashed'])['text_hashed'].count().reset_index(
+            name='total')
         count_hash_recur = count_hash[(count_hash['total'] > 1) &
-                                      (count_hash['text_hashed'] == '__'+self.package_hashed.rsplit('_', 1)[0])].reset_index(drop=True)
+                                      (count_hash['text_hashed'] == '__' + self.package_hashed.rsplit('_', 1)[
+                                          0])].reset_index(drop=True)
 
         pii_index = []
         for i in count_hash_recur.index:
@@ -157,7 +159,7 @@ class ValidatePackage:
             package = count_hash_recur.loc[i, 'package']
             text_hashed = count_hash_recur.loc[i, 'text_hashed']
             pii_index.extend(df_outcome[(df_outcome['file'] == file) & (df_outcome['package'] == package)
-                             & (df_outcome['text_hashed'] == text_hashed)].index)
+                                        & (df_outcome['text_hashed'] == text_hashed)].index)
 
         pii_package_df = df_outcome.loc[pii_index].reset_index(drop=True)
         check = df_outcome.loc[~df_outcome.index.isin(pii_index)].reset_index(drop=True)
@@ -169,7 +171,7 @@ class ValidatePackage:
         check = check.append(pii_package, ignore_index=True)
 
         return check
-   
+
 
 def main():
     parser = argparse.ArgumentParser(description='DDP based validation anonymization process.')
@@ -177,7 +179,8 @@ def main():
                         default=".")
     parser.add_argument("--input_folder", "-i", help="Enter path to folder where the raw data packages can be found",
                         default=".")
-    parser.add_argument("--processed_folder", "-p", help="Enter path to folder where the processed (i.e., de-identified) data packages can be found",
+    parser.add_argument("--processed_folder", "-p",
+                        help="Enter path to folder where the processed (i.e., de-identified) data packages can be found",
                         default=".")
     parser.add_argument("--keys_folder", "-k", help="Enter path to folder where the key files can be found",
                         default=".")

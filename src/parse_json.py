@@ -68,7 +68,7 @@ class ParseJson:
         """Recursively search for values of key in JSON tree."""
         exceptions = ['created_at', 'instagram', 'mp4_size', 'text', 'webp_size',
                       'height', 'frames', 'captions', 'taken_at', 'timestamp', 'date',
-                      'date_joined', 'date_of_birth', 'caption', 'width', 'size', 'time']
+                      'date_joined', 'date_of_birth', 'caption', 'width', 'size', 'time', 'username']
 
         if isinstance(obj, dict):
             for k, v in obj.items():

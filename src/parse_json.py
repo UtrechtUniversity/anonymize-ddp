@@ -43,7 +43,7 @@ class ParseJson:
                         key_name = {data['name']: '__personname',
                                     re.findall(r'[a-zA-ZÀ-ÿ]{2,}', data['name'])[0]: '__personname',
                                     re.findall(r'[a-zA-ZÀ-ÿ]{2,}', data['name'])[-1]: '__personname'}
-                    except Exception:
+                    except (KeyError, IndexError):
                         pass
 
         # Add common given names to dictionary
@@ -108,7 +108,7 @@ class ParseJson:
                             try:
                                 if re.match(r'[0-9-]{6,13}', item['text']):
                                     key_dict[item['text']] = '__phonenumber'
-                            except:
+                            except KeyError:
                                 pass
 
         # Add package filename to key dict as the name of the output package needs to be hashed

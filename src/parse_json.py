@@ -228,7 +228,7 @@ class ParseJson:
         new_dict = {k: v for d in no_dupl for k, v in d.items()}
 
         def check(s):
-            return all(i not in string.punctuation for i in s)
+            return not all(i in string.punctuation for i in s)
 
         new_dict = {k: v for k, v in new_dict.items() if check(k)}
 

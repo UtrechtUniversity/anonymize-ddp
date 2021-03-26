@@ -8,6 +8,7 @@ import logging
 import pandas as pd
 from pathlib import Path
 import re
+import string
 
 
 class ParseJson:
@@ -32,29 +33,33 @@ class ParseJson:
         for file in self.input_folder.glob('*.json'):
             # Per json file: extract sensitive info+labels and store in dict
             with file.open(encoding="utf8") as f:
+                key_dict = {}
+                data = json.load(f)
+                res = self.extract(data, key_dict)
+                keys.append(res)
+
                 if file.stem == 'profile':
-                    data = json.load(f)
                     try:
-                        key_dict = {data['name']: '__personname',
+                        key_name = {data['name']: '__personname',
                                     re.findall(r'[a-zA-ZÀ-ÿ]{2,}', data['name'])[0]: '__personname',
                                     re.findall(r'[a-zA-ZÀ-ÿ]{2,}', data['name'])[-1]: '__personname'}
-                    except (KeyError, IndexError):
+                    except Exception:
                         pass
-                    keys.append(key_dict)
-                else:
-                    key_dict = {}
-                    data = json.load(f)
-                    res = self.extract(data, key_dict)
-                    keys.append(res)
 
         # Add common given names to dictionary
         common_names = self.common_names()
         keys.append(common_names)
 
+        # Add DDP id to dictionary
+        try:
+            keys.append(key_name)
+        except NameError:
+            pass
+
         # Combine separate dictionaries in one
         all_keys = ParseJson.format_dict(keys)
 
-        #replace name labels with hash code
+        # Replace name labels with hash code
         hash_key_dict = {k: (self.mingle(k) if v == '__name' else v) for k, v in all_keys.items()}
 
         return hash_key_dict
@@ -63,7 +68,7 @@ class ParseJson:
         """Recursively search for values of key in JSON tree."""
         exceptions = ['created_at', 'instagram', 'mp4_size', 'text', 'webp_size',
                       'height', 'frames', 'captions', 'taken_at', 'timestamp', 'date',
-                      'date_joined', 'date_of_birth', 'caption', 'width', 'size', 'time']
+                      'date_joined', 'date_of_birth', 'caption', 'width', 'size', 'time', 'username']
 
         if isinstance(obj, dict):
             for k, v in obj.items():
@@ -103,7 +108,7 @@ class ParseJson:
                             try:
                                 if re.match(r'[0-9-]{6,13}', item['text']):
                                     key_dict[item['text']] = '__phonenumber'
-                            except KeyError:
+                            except:
                                 pass
 
         # Add package filename to key dict as the name of the output package needs to be hashed
@@ -220,8 +225,12 @@ class ParseJson:
         """Format irregular list of dictionaries and remove duplicates"""
 
         no_dupl = [i for n, i in enumerate(obj) if i not in obj[n + 1:]]
-        no_dupl.reverse()
         new_dict = {k: v for d in no_dupl for k, v in d.items()}
+
+        def check(s):
+            return not all(i in string.punctuation for i in s)
+
+        new_dict = {k: v for k, v in new_dict.items() if check(k)}
 
         return new_dict
 
@@ -263,6 +272,7 @@ def main():
 
     key_series = pd.Series(key_dict, name='subt')
     key_series.to_csv(output_folder / 'keys.csv', index_label='id', header=True)
+
 
 if __name__ == '__main__':
     main()

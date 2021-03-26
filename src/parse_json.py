@@ -30,7 +30,7 @@ class ParseJson:
         self.logger.info(f"Creating key file for {self.input_folder}...")
 
         keys = []
-        for file in input_folder.glob('*.json'):
+        for file in self.input_folder.glob('*.json'):
             # Per json file: extract sensitive info+labels and store in dict
             with file.open(encoding="utf8") as f:
                 key_dict = {}
@@ -272,6 +272,7 @@ def main():
 
     key_series = pd.Series(key_dict, name='subt')
     key_series.to_csv(output_folder / 'keys.csv', index_label='id', header=True)
+
 
 if __name__ == '__main__':
     main()

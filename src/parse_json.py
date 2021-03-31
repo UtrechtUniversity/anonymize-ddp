@@ -227,6 +227,9 @@ class ParseJson:
         no_dupl = [i for n, i in enumerate(obj) if i not in obj[n + 1:]]
         new_dict = {k: v for d in no_dupl for k, v in d.items()}
 
+        ddp_ids = [i.lower() for i, v in new_dict.items() if v == '__personname']
+        new_dict = {k: v for k, v in new_dict.items() if k.lower() not in ddp_ids or v == '__personname'}
+
         def check(s):
             return not all(i in string.punctuation for i in s)
 

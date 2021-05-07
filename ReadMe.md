@@ -13,6 +13,7 @@ Pseudonimizing software for data download packages (DDP), specifically focussed 
     * [Download DDP](#download-ddp)
     * [Create additional files](#create-additional-files)
   * [Run software](#run-software)
+  * [Evaluation](#evaluation)
   
 ## About Anonymize-DDP
 **Date**: December 2020
@@ -35,8 +36,9 @@ The code in this project is licensed with [MIT](LICENSE.md).
 ### Attribution and academic use
 The manuscript detailing the first release of anonymize-ddp is submitted and available [here](https://arxiv.org/pdf/2105.02175.pdf)
 
-A data set consisting of 11 personal Instagram archives, or Data-Download Packages, was created to evaluate the anonymization procedure.
+A data set consisting of 11 personal Instagram archives, or Data-Download Packages, was created to [evaluate](/src/evaluation) the anonymization procedure.
 This data set is publicly available at [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.4472606.svg)](https://doi.org/10.5281/zenodo.4472606)
+
 
 # Getting Started
 
@@ -107,3 +109,6 @@ An overview of the program's workflow is shown below:
 ![flowanonymize.png](flowanonymize.png)
 
 The output of the program will be a copy of the zipped data download package with all names, usernames, email addresses, and phone numbers pseudonimized, and all pictures and videos blurred. This pseudonimized data download package is saved in the output folder.
+
+## Evaluation
+The evaluation of the performance of the anonymization procedure is described [here](/src/evaluation)

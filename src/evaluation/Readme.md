@@ -21,7 +21,7 @@ Before running the software, the following steps need to be taken:
 2. **[Anonymize Instagram DDPs](#anonymize-ddps)**
 
 ### Anonymize DDPs
-Run the automated anonymization as described in the [main Readme](../../Readme.md)
+Run the automated anonymization as described in the [main Readme](/../../)
 After the anonymization, make sure you have separate folders with the following data:
 * original DDPs
 * anonymized DDPs

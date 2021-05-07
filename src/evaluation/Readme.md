@@ -18,7 +18,7 @@ scikit-learn
 Before running the software, the following steps need to be taken:
 
 1. **Collect data: both Instagram DDPs and corresponding ground truth data**
-2. **Anonymize Instagram DDPs**
+2. **[Anonymize Instagram DDPs](#anonymize-ddps)**
 
 ### Anonymize DDPs
 Run the automated anonymization as described in [REF]

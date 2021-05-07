@@ -7,11 +7,12 @@ Pseudonimizing software for data download packages (DDP), specifically focussed 
   * [Built with](#built-with)
   * [License](#license)
   * [Attribution and academic use](#attribution-and-academic-use)
-* [Preparatory steps](#preparatory-steps)
-  * [Clone repository](#clone-repository)
-  * [Download DDP](#download-ddp)
-  * [Create additional files](#create-additional-files)
-* [Run software](#run-software)
+* [Getting Started](#getting-started)
+  * [Preparatory steps](#preparatory-steps)
+    * [Clone repository](#clone-repository)
+    * [Download DDP](#download-ddp)
+    * [Create additional files](#create-additional-files)
+  * [Run software](#run-software)
   
 ## About Anonymize-DDP
 **Date**: December 2020
@@ -32,8 +33,12 @@ The blurring of text in images and videos is based on a pre-trained version of t
 The code in this project is licensed with [MIT](LICENSE.md).
 
 ### Attribution and academic use
+The manuscript detailing the first release of anonymize-ddp is submitted and available [here](https://arxiv.org/pdf/2105.02175.pdf)
 
-A paper is being published about using and validating this pseudonimization software (link to paper).
+A data set consisting of 11 personal Instagram archives, or Data-Download Packages, was created to evaluate the anonymization procedure.
+This data set is publicly available at [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.4472606.svg)](https://doi.org/10.5281/zenodo.4472606)
+
+# Getting Started
 
 ## Preparatory steps
 

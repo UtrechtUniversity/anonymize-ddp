@@ -7,7 +7,7 @@ For this evaluation an example data set is used which includes:
 * A set of 11 DDPs with nonsense content
 * A groundtruth file with results of manually labeling the PII in these DDPs
 
-The example data set is available at http://doi.org/10.5281/zenodo.4472606.
+The example data set is available at [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.4472606.svg)](https://doi.org/10.5281/zenodo.4472606).
 
 ### Prerequisites
 

@@ -1,6 +1,6 @@
 # Evaluation
 
-The evaluation procedure determines the performance of the anonymization code.
+The evaluation procedure determines the performance of anonymization code _concerning deidentification of text_.
 It compares results of the automated anonymization with the ideal expected result, i.e., a manually created ground-truth.
 
 For this evaluation an example data set is used which includes:

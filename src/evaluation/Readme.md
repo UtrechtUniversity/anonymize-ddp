@@ -1,11 +1,13 @@
 # Evaluation
 
-Evaluation script for the anonymization of DDPs
-For this evaluation an example data set is used which includes:
-* A set of DDPs with nonsense content
-* A file with results of manually labeling the PII in these DDPs
+The evaluation procedure determines the performance of the anonymization code.
+It compares results of the automated anonymization with the ideal expected result, i.e., a manually created ground-truth.
 
-The example data is available at ...
+For this evaluation an example data set is used which includes:
+* A set of 11 DDPs with nonsense content
+* A groundtruth file with results of manually labeling the PII in these DDPs
+
+The example data set is available at http://doi.org/10.5281/zenodo.4472606.
 
 ### Prerequisites
 
@@ -15,32 +17,16 @@ scikit-learn
 
 Before running the software, the following steps need to be taken:
 
-1. **Anonymize DDPs**
-2. **[Ground truth data](#groundtruth-data)**
+1. **Collect data: both Instagram DDPs and corresponding ground truth data**
+2. **Anonymize Instagram DDPs**
 
 ### Anonymize DDPs
-
-Folders with 
+Run the automated anonymization as described in [REF]
+After the anonymization, make sure you have separate folders with the following data:
 * original DDPs
 * anonymized DDPs
 * key files
 
-### Ground truth data
-
-Download results of manual labeling
-
-The original, non-anonymized text of the DDPs is compared to the labeled ground truth to evaluate labeling process
-Create text_packages.csv which includes text of all original DDPs
-
-```
-$ cd src/evaluation
-$ python merge_inputfiles.py  [OPTIONS]
-
-Options:
-  -i path to folder with original DDPs
-  -r  path to folder with results of manual labeling
-
-```
 
 ## Perform evaluation
 

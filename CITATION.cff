@@ -1,11 +1,11 @@
 # YAML 1.2
 ---
 authors:  Voorvaart, R.
-          Vos, M. de. 
+          Vos, M. G. de. 
           Boeschoten, L.
           Kaandorp, C.
-          Goorbergh, R. Van Den
-cff-version: "1.0.1"
+          Goorbergh, R. van den
+cff-version: "1.1.0"
 doi: 10.5281/zenodo.5211335
 license: MIT
 message:

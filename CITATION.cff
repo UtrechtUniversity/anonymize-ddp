@@ -1,16 +1,14 @@
 # YAML 1.2
 ---
-authors: 
+authors:  Voorvaart, R.
+          Vos, M. de. 
+          Boeschoten, L.
+          Kaandorp, C.
+          Goorbergh, R. Van Den
 cff-version: "1.1.0"
-doi: tbd
-identifiers: 
-  - 
-    type: doi
-    value: "10.5281/zenodo.5211335 "
+doi: 10.5281/zenodo.5211335
 license: MIT
-message: |
-    "If you use this software, please cite it using these metadata:
-    Boeschoten, L., Voorvaart, R., Goorbergh, R. Van Den, Kaandorp, C., & Vos, M. De. (2021). Automatic de-identification of Data Download Packages. Data Science, accepted for publication"
+message:
 repository-code: "https://github.com/UtrechtUniversity/anonymize-ddp/releases/tag/v1.0.1"
 title: "anonymize-ddp"
 version: "1.0.1"

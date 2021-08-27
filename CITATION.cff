@@ -37,4 +37,3 @@ message: "If you use this software, please cite it using these metadata."
 repository-code: "https://github.com/UtrechtUniversity/anonymize-ddp/releases/tag/v1.0.1"
 title: "anonymize-ddp"
 version: "1.0.1"
-...

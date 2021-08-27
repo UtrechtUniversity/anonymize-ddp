@@ -1,0 +1,40 @@
+# YAML 1.2
+---
+authors: 
+  -
+    affiliation: "Utrecht University"
+    family-names: Voorvaart
+    given-names: Roos
+    orcid: "https://orcid.org/0000-0002-4411-8495"
+  -
+    affiliation: "Utrecht University"
+    family-names: "de Vos"
+    given-names: "Martine G"
+    name-suffix: 
+    orcid: "https://orcid.org/0000-0001-5301-1713"
+  -
+    affiliation: "Utrecht University"
+    family-names: Boeschoten
+    given-names: Laura
+    orcid: "https://orcid.org/0000-0002-3536-0474"
+  -
+    affiliation: "Utrecht University"
+    family-names: "van den Goorbergh"
+    given-names: Ruben
+    orcid: "https://orcid.org/0000-0003-3229-3015"
+  -
+    affiliation: "Utrech University"
+    family-names: Kaandorp
+    given-names: Casper
+    orcid: "https://orcid.org/0000-0001-6326-6680"
+cff-version: "1.1.0"
+doi: "10.5281/zenodo.5211335"
+keywords: 
+  - pseudonymization
+  - python
+license: MIT
+message: "If you use this software, please cite it using these metadata."
+repository-code: "https://github.com/UtrechtUniversity/anonymize-ddp/releases/tag/v1.0.1"
+title: "anonymize-ddp"
+version: "1.0.1"
+...

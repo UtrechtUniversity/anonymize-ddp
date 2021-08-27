@@ -30,9 +30,9 @@ authors:
 cff-version: "1.0.3"
 doi: "10.5281/zenodo.5211335"
 keywords: 
-  - pseudonymization
-  - python
-license: MIT
+  - "pseudonymization"
+  - "python"
+license: "MIT"
 message: "If you use this software, please cite it using these metadata."
 repository-code: "https://github.com/UtrechtUniversity/anonymize-ddp/releases/tag/v1.0.1"
 title: "anonymize-ddp"

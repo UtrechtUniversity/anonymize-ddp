@@ -8,13 +8,14 @@ import time
 import progressbar
 import logging
 import itertools
-from parse_json import ParseJson
 from typing import Union
 import json
 import zipfile
 import shutil
-from blur_images import BlurImages
-from blur_videos import BlurVideos
+
+from anonymize.blur_images import BlurImages
+from anonymize.blur_videos import BlurVideos
+from anonymize.parse_json import ParseJson
 
 
 class AnonymizeInstagram:

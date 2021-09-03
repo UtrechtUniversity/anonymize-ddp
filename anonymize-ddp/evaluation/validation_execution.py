@@ -3,8 +3,9 @@ import pandas as pd
 from sklearn.metrics import f1_score, precision_score, recall_score
 import logging
 import argparse
-from validation_packagebased import ValidatePackage
-from import_files import ImportFiles
+
+from evaluation.validation_packagebased import ValidatePackage
+from evaluation.import_files import ImportFiles
 
 
 class ValidateExecution:

@@ -1,15 +1,24 @@
+"""Test script for validation of anonimyzation procedure
+
+The validation scripts evaluate the performance of anonimyze-ddp.
+This test script checks whether these validation scripts produce concistent results.
+It uses the data set in the folder 'test_validation_data' which contains orginal, anonymized and ground truth data for one DDP
+
+Run this script when you modify the validation procedure.
+"""
+
 import pytest
 import pandas as pd
 from pathlib import Path
-from evaluation.import_files import ImportFiles
-from evaluation.validation_execution import ValidateExecution
-from evaluation.validation_packagebased import ValidatePackage
+from validation.import_files import ImportFiles
+from validation.validation_execution import ValidateExecution
+from validation.validation_packagebased import ValidatePackage
 
 @pytest.fixture(autouse=True,scope="class")
 def im_object():
     """Instantiate ImportFiles class with test data; created object is used in all tests""" 
 
-    data_dir = Path("./test_data")
+    data_dir = Path("./test_validation_data")
     processed = data_dir / "processed"
     key_dir = data_dir / "keys"
     res_file = data_dir / "result_horses.json"

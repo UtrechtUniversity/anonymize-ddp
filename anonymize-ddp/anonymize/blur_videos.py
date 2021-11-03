@@ -1,11 +1,12 @@
-import module_find_blur_faces as mfbf
-import module_find_blur_text as mfbt
 from pathlib import Path
 import progressbar
 import cv2 as cv
 import time
 import numpy as np
 import logging
+
+import anonymize.module_find_blur_faces as mfbf
+import anonymize.module_find_blur_text as mfbt
 
 
 class BlurVideos:

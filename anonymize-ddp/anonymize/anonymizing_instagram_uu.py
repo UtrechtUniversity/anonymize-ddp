@@ -1,3 +1,13 @@
+"""Main script for anonimyzation of Instagram Data Download packages
+
+The anonymization procedure consists of several scripts to detect+anonymize personal information in text and to blur media content.
+To run the anomization you need to have the following data present:
+* Instagram Data Download package as zip file
+
+Run the script from the commandline
+You can run the anonymization for multiple DDPs at once
+""" 
+
 import argparse
 from pathlib import Path, PurePath
 import re
@@ -8,13 +18,14 @@ import time
 import progressbar
 import logging
 import itertools
-from parse_json import ParseJson
 from typing import Union
 import json
 import zipfile
 import shutil
-from blur_images import BlurImages
-from blur_videos import BlurVideos
+
+from anonymize.blur_images import BlurImages
+from anonymize.blur_videos import BlurVideos
+from anonymize.parse_json import ParseJson
 
 
 class AnonymizeInstagram:

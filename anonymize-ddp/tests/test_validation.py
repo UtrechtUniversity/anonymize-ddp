@@ -1,7 +1,7 @@
 """Test script for validation of anonimyzation procedure
 
 The validation scripts evaluate the performance of anonimyze-ddp.
-This test script checks whether these validation scripts produce concistent results.
+This test script checks whether the validation scripts produce concistent results.
 Unpack test_validation_data.zip to obtain the corresponding test data set which contains orginal, anonymized and ground truth data for one DDP
 
 Run this script when you modify the validation procedure.

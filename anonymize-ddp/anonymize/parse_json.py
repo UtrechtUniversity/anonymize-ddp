@@ -12,7 +12,7 @@ import string
 
 
 class ParseJson:
-    """ Extract sensitive information in jsonfiles"""
+    """ Extract sensitive information in jsonfiles and create corresponding substitutes"""
 
     def __init__(self, input_folder: Path, output_folder: Path, package_user: str, timestamp: str):
         self.logger = logging.getLogger('anonymizing.parse_json')

@@ -1,4 +1,5 @@
 # exclude compiled binaries and external models
+.vscode/*
 bin/*
 *.pyc
 

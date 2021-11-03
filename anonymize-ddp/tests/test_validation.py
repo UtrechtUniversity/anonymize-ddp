@@ -18,7 +18,7 @@ from validation.validation_packagebased import ValidatePackage
 def im_object():
     """Instantiate ImportFiles class with test data; created object is used in all tests""" 
 
-    data_dir = Path("./test_validation_data")
+    data_dir = Path.cwd() / "tests/test_validation_data"
     processed = data_dir / "processed"
     key_dir = data_dir / "keys"
     res_file = data_dir / "result_horses.json"

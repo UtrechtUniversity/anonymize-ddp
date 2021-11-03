@@ -45,6 +45,7 @@ This data set is publicly available at [![DOI](https://zenodo.org/badge/DOI/10.5
 
 ## Prerequisites
 This project makes use of Python 3.8 and [Poetry](https://python-poetry.org/) for managing dependencies. 
+To clone this repository, you'll need *Git installed* on your computer.
 
 ## Preparatory steps
 
@@ -56,7 +57,7 @@ Before running the software, the following steps need to be taken:
 
 ### Clone repository
 
-To clone this repository, you'll need *Git installed* on your computer. When Git is installed, run the following code in the command line:
+Run the following code in the command line:
 
 ```
 # Clone this repository

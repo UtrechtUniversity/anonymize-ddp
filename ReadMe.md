@@ -8,12 +8,13 @@ Pseudonimizing software for data download packages (DDP), specifically focussed 
   * [License](#license)
   * [Attribution and academic use](#attribution-and-academic-use)
 * [Getting Started](#getting-started)
+  * [Prerequisites](#prerequisites)
   * [Preparatory steps](#preparatory-steps)
     * [Clone repository](#clone-repository)
     * [Download DDP](#download-ddp)
     * [Create additional files](#create-additional-files)
   * [Run software](#run-software)
-  * [Evaluation](#evaluation)
+  * [Validation](#validation)
   
 ## About Anonymize-DDP
 **Date**: December 2020
@@ -34,13 +35,16 @@ The blurring of text in images and videos is based on a pre-trained version of t
 The code in this project is licensed with [MIT](LICENSE.md).
 
 ### Attribution and academic use
-The manuscript detailing the first release of anonymize-ddp is submitted and available [here](https://arxiv.org/pdf/2105.02175.pdf)
+The scientific paper detailing the first release of anonymize-ddp is available [here](https://doi.org/10.3233/DS-210035).
 
-A data set consisting of 11 personal Instagram archives, or Data-Download Packages, was created to [evaluate](/src/evaluation) the anonymization procedure.
+A data set consisting of 11 personal Instagram archives, or Data-Download Packages, was created to [validate](/anonymize/validation) the anonymization procedure.
 This data set is publicly available at [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.4472606.svg)](https://doi.org/10.5281/zenodo.4472606)
 
 
 # Getting Started
+
+## Prerequisites
+This project makes use of Python 3.8 and [Poetry](https://python-poetry.org/) for managing dependencies. 
 
 ## Preparatory steps
 
@@ -59,15 +63,12 @@ To clone this repository, you'll need *Git installed* on your computer. When Git
 $ git clone https://github.com/UtrechtUniversity/anonymize-ddp
 
 # Go into the repository
-$ cd anonymize-ddp
+$ cd anonymize-ddp/anonymize-ddp
 
 # Install dependencies
-pip install -r requirements.txt
+poetry install 
 
-# When experiencing difficulties
-pip install -r requirements.txt -f https://download.pytorch.org/whl/torch_stable.html
 ```
-N.B. When experiencing difficulties with installing torch, have a look at the [PyTorch website](https://pytorch.org/) for more information. When issues arise concerning the Anonymize software, make sure that no prior version is installed (```$ pip uninstall anonymize_UU``` and/or ```$ pip uninstall anonymoUUs```).
 
 ### Download DDP
 
@@ -85,16 +86,18 @@ Instagram will deliver your data in a compressed zip folder with format **userna
 
 Before you can run the software, you need to make sure that the [src folder](/src) contains the following items:
 * **Facial blurring software**: The *frozen_east_text_detection.pb* software, necessary for the facial blurring of images and videos, can be downloaded from [GitHub](https://github.com/oyyd/frozen_east_text_detection.pb) 
-* **Participant file**\*: An overview of all participants' usernames and participant IDs (e.g., participants.csv). We recommend placing this file in the `src` folder. However, you can save this file anywhere you like, as long as you refer to the path correctly while running the software.
+* **Participant file**\*: An overview of all participants' usernames and participant IDs (e.g., participants.csv). We recommend placing this file in the `anonymize` folder. However, you can save this file anywhere you like, as long as you refer to the path correctly while running the software.
 
 **\*** N.B. Only relevant for participant based studies with *predefined* participant IDs. This file can have whatever name you prefer, as long as it is saved as .csv and contains 2 columns; the first being the original instagram handles (e.g., janjansen) and the second the participant IDs (e.g., PP001).
 
 ## Run software
 
-When all preceding steps are taken, the data download packages can be pseudonimized. Run the program with (atleast) the arguments `-i` for data input folder (i.e., [data](\data)) and ` -o` data output folder (i.e., [results/output](/results/output)):
+When all preceding steps are taken, the data download packages can be pseudonimized. 
+Note that the `poetry run` command executes the given command inside the project’s virtual environment.
+Run the program with (atleast) the arguments `-i` for data input folder (i.e., [data](\data)) and ` -o` data output folder (i.e., [results/output](/results/output)):
 
 ```
-$ python src/anonymizing_instagram_uu.py [OPTIONS]
+$ poetry run python anonymize/anonymizing_instagram_uu.py [OPTIONS]
 
 Options:
   -i  path to folder containing zipfiles (i.e., -i data/raw)
@@ -110,12 +113,12 @@ An overview of the program's workflow is shown below:
 
 The output of the program will be a copy of the zipped data download package with all names, usernames, email addresses, and phone numbers pseudonimized, and all pictures and videos blurred. This pseudonimized data download package is saved in the output folder.
 
-## Evaluation
+## Validation
 
-The evaluation procedure determines the performance of anonymization code _concerning deidentification of text_.
+The validation procedure determines the performance of anonymization code _concerning deidentification of text_.
 It compares results of the automated anonymization with the ideal expected result, i.e., a manually created ground-truth.
 
-For this evaluation an example data set is used which includes:
+For this validation an example data set is used which includes:
 * A set of 11 DDPs with nonsense content
 * A groundtruth file with results of manually labeling the PII in these DDPs
 
@@ -145,8 +148,8 @@ After the anonymization, make sure you have separate folders with the following 
 When all preceding steps are taken, the evaluation can be performed. 
 
 ```
-$ cd src/evaluation
-$ python validation_script.py [OPTIONS]
+$ cd anonymize/validation
+$ poetry run python validation_script.py [OPTIONS]
 
 Options:
   -r  path to file with results of manual labeling
@@ -159,3 +162,15 @@ Evaluation metrics:
 * table with recall, precision en f1
 * four folders with specific occurences of FP, FN, TP and special hashes
 
+## Testing
+Run tests with available test data to check the consistency of the evaluation procedure 
+From the root folder:
+
+```
+# Go to the main folder of the poetry project
+$ cd anonymize-ddp/anonymize-ddp
+
+# Run the test 
+$ poetry run pytest
+
+```
